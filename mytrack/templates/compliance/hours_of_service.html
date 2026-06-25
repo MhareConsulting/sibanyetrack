@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Hours of Service — myTrack{% endblock %}
+{% block page_title %}Hours of Service{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Compliance</div>
+      <h1>Hours of Service</h1>
+      <p>Last 7 days &middot; Daily limit 11 h &middot; Weekly limit 60 h</p>
+    </div>
+  </div>
+
+  {% if drivers_data %}
+    {% for d in drivers_data %}
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div class="card-title">{{ d.driver }}</div>
+          <div class="card-subtitle">Weekly total: {{ d.week_display }} h</div>
+        </div>
+        {% if d.week_status == 'danger' %}
+          <span class="badge badge-expired">Danger</span>
+        {% elif d.week_status == 'warning' %}
+          <span class="badge badge-warning">Warning</span>
+        {% else %}
+          <span class="badge badge-ok">OK</span>
+        {% endif %}
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+        {% for day in d.days %}
+        <div style="text-align:center">
+          <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px">
+            {{ day.date|date:"D" }}
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-soft);margin-bottom:4px">{{ day.date|date:"d M" }}</div>
+          <div style="
+            padding:8px 4px;border-radius:8px;font-size:0.82rem;font-weight:700;
+            {% if day.status == 'danger' %}background:#fee2e2;color:#991b1b;
+            {% elif day.status == 'warning' %}background:#fef3c7;color:#92400e;
+            {% else %}background:#d1fae5;color:#065f46;
+            {% endif %}
+            {% if day.minutes == 0 %}background:var(--border-soft);color:var(--text-soft);{% endif %}
+          ">
+            {% if day.minutes %}{{ day.display }}{% else %}—{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="card" style="text-align:center;padding:60px;color:var(--text-muted)">
+      No driving recorded in the last 7 days.
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

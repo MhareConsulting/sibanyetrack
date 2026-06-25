@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Camera Health — myTrack{% endblock %}
+{% block page_title %}Camera health{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:16px">
+    Channels are marked <strong>Stale</strong> if no clip has been received in {{ stale_hours }} hour{{ stale_hours|pluralize }}.
+    <a href="{% url 'video-list' %}" style="margin-left:12px">← All clips</a>
+  </p>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Channel</th>
+          <th>Source</th>
+          <th>Last clip received</th>
+          <th style="text-align:center">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ row.channel.vehicle.registration }}</td>
+          <td>{{ row.channel.name }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">{{ row.channel.get_source_display }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">
+            {% if row.channel.camera_last_seen %}
+              {{ row.channel.camera_last_seen|timesince }} ago
+            {% else %}
+              Never
+            {% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if row.status == 'ok' %}
+              <span class="badge badge-ok">OK</span>
+            {% elif row.status == 'stale' %}
+              <span class="badge badge-expired">Stale</span>
+            {% else %}
+              <span class="badge badge-unknown">No data</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if row.channel.stream_url %}
+              <a href="{% url 'channel-live' row.channel.pk %}"
+                 style="font-size:0.82rem;font-weight:600;color:var(--mh-primary)">&#9654; Live</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">
+            No camera channels configured. Add a channel via the vehicle's device settings.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

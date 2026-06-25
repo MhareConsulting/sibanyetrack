@@ -1,0 +1,98 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#8A2BE2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="myTrack">
+  <link rel="manifest" href="{% static 'mobile/manifest.webmanifest' %}">
+  <link rel="apple-touch-icon" href="{% static 'mobile/icon.svg' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="{% static 'mobile/app.css' %}" rel="stylesheet">
+  <title>{% block title %}myTrack{% endblock %}</title>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="mobile-app">
+    <header class="m-header">
+      <div class="m-brand-mark" aria-hidden="true"></div>
+      <div class="m-title">{% block header_title %}Home{% endblock %}</div>
+      <div class="m-header-actions">
+        <button type="button" class="m-icon-btn" id="m-plus-btn" title="Actions" aria-label="Actions">+</button>
+        <button type="button" class="m-icon-btn menu" id="m-menu-btn" aria-label="Menu">☰</button>
+      </div>
+    </header>
+
+    <main class="m-main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <nav class="m-bottom-nav" aria-label="Main">
+      <a href="{% url 'mobile-home' %}" class="m-nav-item{% if mobile_tab == 'home' %} active{% endif %}">
+        {% if mobile_tab == 'home' %}<span class="m-nav-pill">{% endif %}
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span>Home</span>
+        {% if mobile_tab == 'home' %}</span>{% endif %}
+      </a>
+      <a href="{% url 'mobile-map' %}" class="m-nav-item{% if mobile_tab == 'map' %} active{% endif %}">
+        {% if mobile_tab == 'map' %}<span class="m-nav-pill">{% endif %}
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        <span>Map view</span>
+        {% if mobile_tab == 'map' %}</span>{% endif %}
+      </a>
+      <a href="{% url 'mobile-trips' %}" class="m-nav-item{% if mobile_tab == 'trips' %} active{% endif %}">
+        {% if mobile_tab == 'trips' %}<span class="m-nav-pill">{% endif %}
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        <span>Trips</span>
+        {% if mobile_tab == 'trips' %}</span>{% endif %}
+      </a>
+      <a href="{% url 'mobile-assets' %}" class="m-nav-item{% if mobile_tab == 'assets' %} active{% endif %}">
+        {% if mobile_tab == 'assets' %}<span class="m-nav-pill">{% endif %}
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h8M6 11h12l-1-4H7L6 11z"/></svg>
+        <span>Assets</span>
+        {% if mobile_tab == 'assets' %}</span>{% endif %}
+      </a>
+    </nav>
+  </div>
+
+  <div class="m-menu-overlay" id="m-menu-overlay">
+    <div class="m-menu-panel">
+      <p style="font-weight:700;margin-bottom:12px">Menu</p>
+      {% if is_admin %}
+      <form method="post" action="{% url 'depot-switch' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <label style="font-size:0.75rem;color:var(--muted)">Depot</label>
+        <select name="depot_id" class="form-control" style="width:100%;margin:8px 0" onchange="this.form.submit()">
+          <option value="all"{% if not active_depot %} selected{% endif %}>All depots</option>
+          {% for d in accessible_depots %}
+          <option value="{{ d.pk }}"{% if active_depot and active_depot.pk == d.pk %} selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% elif accessible_depots.count > 1 %}
+      <form method="post" action="{% url 'depot-switch' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <select name="depot_id" style="width:100%;margin:8px 0;padding:8px" onchange="this.form.submit()">
+          {% for d in accessible_depots %}
+          <option value="{{ d.pk }}"{% if active_depot and active_depot.pk == d.pk %} selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      <a href="/?desktop=1">Desktop dashboard</a>
+      <a href="{% url 'events-live-dashboard' %}">Dispatcher console</a>
+      <a href="{% url 'logout' %}">Log out</a>
+    </div>
+  </div>
+
+  <script src="{% static 'js/icons.js' %}"></script>
+  <script src="{% static 'mobile/app.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

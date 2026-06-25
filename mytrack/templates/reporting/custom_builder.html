@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Custom Reports{% endblock %}
+{% block page_title %}Custom Report Builder{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div class="page-header">
+    <div>
+      <h1>Custom Report Builder</h1>
+      <p>Create report definitions with field selection, aggregates, grouping, and schedules.</p>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-success">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;">
+    <div class="card">
+      <h3 style="margin-bottom:12px;">Definition</h3>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+          </div>
+        {% endif %}
+        {% for field in form %}
+        <div class="form-group">
+          <label>{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small style="color:#6b7280">{{ field.help_text }}</small>{% endif %}
+          {% for err in field.errors %}<div style="color:#b91c1c">{{ err }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Save Definition</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:12px;">Saved Reports</h3>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Domain</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for d in definitions %}
+          <tr>
+            <td>{{ d.name }}</td>
+            <td>{{ d.get_domain_display }}</td>
+            <td style="display:flex;gap:8px;">
+              <a class="btn btn-ghost btn-sm" href="?edit={{ d.id }}">Edit</a>
+              <a class="btn btn-ghost btn-sm" href="?preview={{ d.id }}">Preview</a>
+              <form method="post" action="{% url 'reporting-run-custom' d.id %}">
+                {% csrf_token %}
+                <button class="btn btn-primary btn-sm" type="submit">Run</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3">No custom reports saved.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-bottom:12px;">Recent Runs</h3>
+    <table class="data-table">
+      <thead><tr><th>Definition</th><th>Status</th><th>Rows</th><th>Started</th><th>Finished</th><th>Export</th></tr></thead>
+      <tbody>
+        {% for run in runs %}
+        <tr>
+          <td>{{ run.definition.name }}</td>
+          <td>{{ run.get_status_display }}</td>
+          <td>{{ run.row_count }}</td>
+          <td>{{ run.started_at|default:"-" }}</td>
+          <td>{{ run.finished_at|default:"-" }}</td>
+          <td>
+            <a href="{% url 'reporting-export-custom' run.id %}?format=csv">CSV</a> |
+            <a href="{% url 'reporting-export-custom' run.id %}?format=pdf">PDF</a> |
+            <a href="{% url 'reporting-export-custom' run.id %}?format=xlsx">XLSX</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6">No runs yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if preview_rows %}
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-bottom:12px;">Preview (first {{ preview_rows|length }} rows)</h3>
+    <table class="data-table">
+      <thead>
+      <tr>
+        {% for k, v in preview_rows.0.items %}
+        <th>{{ k }}</th>
+        {% endfor %}
+      </tr>
+      </thead>
+      <tbody>
+      {% for row in preview_rows %}
+      <tr>
+        {% for k, v in row.items %}
+        <td>{{ v }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

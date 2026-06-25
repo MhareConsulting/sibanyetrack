@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{% if creating %}Add user{% else %}Edit {{ target_user.username }}{% endif %} — Admin{% endblock %}
+{% block page_title %}{% if creating %}Add user{% else %}Edit user{% endif %}{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:560px">
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+    <a href="{% url 'admin-user-search' %}" class="btn btn-ghost btn-sm">← User search</a>
+    {% if target_user and target_user.organisation %}
+    <a href="{% url 'admin-org-detail' target_user.organisation.pk %}?tab=users" class="btn btn-ghost btn-sm">Organisation</a>
+    {% endif %}
+  </div>
+
+  {% if messages %}
+  <ul style="list-style:none;padding:0;margin:0 0 16px">
+    {% for m in messages %}
+    <li style="padding:10px 14px;border-radius:8px;font-size:0.88rem;margin-bottom:8px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0">{{ m }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger" style="margin-bottom:16px">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="card" style="padding:22px 24px">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if creating %}
+      <div class="form-group">
+        <label for="id_username">Username</label>
+        {{ form.username }}
+        {% if form.username.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.username.errors.0 }}</div>{% endif %}
+      </div>
+      {% else %}
+      <p style="font-size:0.88rem;color:var(--text-muted);margin:0 0 16px">
+        Username: <strong>{{ target_user.username }}</strong> (cannot be changed here)
+      </p>
+      {% endif %}
+
+      <div class="form-group">
+        <label for="id_email">Email</label>
+        {{ form.email }}
+        {% if form.email.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.email.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label for="id_first_name">First name</label>
+          {{ form.first_name }}
+        </div>
+        <div>
+          <label for="id_last_name">Last name</label>
+          {{ form.last_name }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="id_role">Role</label>
+        {{ form.role }}
+        {% if form.role.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.role.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_organisation">Organisation</label>
+        {{ form.organisation }}
+        {% if form.organisation.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.organisation.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        {{ form.consumes_license }}
+        <label for="id_consumes_license" style="margin:0;font-weight:500">Counts toward org seat limit</label>
+      </div>
+
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        {{ form.is_active }}
+        <label for="id_is_active" style="margin:0;font-weight:500">Active</label>
+      </div>
+
+      {% if creating %}
+      <div class="form-group">
+        <label for="id_password1">Password</label>
+        {{ form.password1 }}
+        {% if form.password1.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.password1.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_password2">Confirm password</label>
+        {{ form.password2 }}
+        {% if form.password2.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.password2.errors.0 }}</div>{% endif %}
+      </div>
+      {% else %}
+      <div class="form-group">
+        <label for="id_new_password">New password</label>
+        {{ form.new_password }}
+        <p style="font-size:0.78rem;color:var(--text-muted);margin:6px 0 0">{{ form.new_password.help_text }}</p>
+        {% if form.new_password.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.new_password.errors.0 }}</div>{% endif %}
+      </div>
+      {% if "is_staff" in form.fields %}
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        {{ form.is_staff }}
+        <label for="id_is_staff" style="margin:0;font-weight:500">Django staff (platform admin panel)</label>
+      </div>
+      <p style="font-size:0.78rem;color:var(--text-muted);margin:-4px 0 12px">Only superusers can change this flag.</p>
+      {% endif %}
+      {% endif %}
+
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button type="submit" class="btn btn-primary">{% if creating %}Create user{% else %}Save changes{% endif %}</button>
+        <a href="{% url 'admin-user-search' %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

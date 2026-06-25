@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% block title %}{{ domain|title }} Report — mTrack{% endblock %}
+{% block page_title %}{{ domain|title }} Report{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+<style>
+  /* ── Domain accent tokens ───────────────────────────── */
+  {% if domain == "speed" %}
+  :root { --rd-accent:#ef4444; --rd-bg:rgba(239,68,68,.08); --rd-icon:"⚡"; }
+  {% elif domain == "fuel" %}
+  :root { --rd-accent:#f59e0b; --rd-bg:rgba(245,158,11,.08); --rd-icon:"⛽"; }
+  {% elif domain == "geofence" %}
+  :root { --rd-accent:#8b5cf6; --rd-bg:rgba(139,92,246,.08); --rd-icon:"📍"; }
+  {% else %}
+  :root { --rd-accent:#10b981; --rd-bg:rgba(16,185,129,.08); --rd-icon:"🗺"; }
+  {% endif %}
+
+  /* ── Page header ─────────────────────────────────────── */
+  .rd-header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; margin-bottom:20px; flex-wrap:wrap;
+  }
+  .rd-header-left { display:flex; align-items:center; gap:12px; }
+  .rd-domain-icon {
+    width:44px; height:44px; border-radius:12px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.3rem; background:var(--rd-bg);
+  }
+  .rd-brand  { font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--rd-accent); margin-bottom:3px; }
+  .rd-title  { font-size:1.3rem; font-weight:800; color:var(--mh-ink); margin:0; line-height:1.15; }
+  .rd-export-row { display:flex; gap:6px; flex-shrink:0; padding-top:4px; }
+
+  /* ── Meta strip ──────────────────────────────────────── */
+  .rd-meta {
+    display:flex; gap:0; background:#fff; border:1px solid var(--border-soft);
+    border-radius:10px; overflow:hidden; margin-bottom:16px; box-shadow:var(--shadow-xs);
+  }
+  .rd-meta-item {
+    flex:1; padding:8px 14px; border-right:1px solid var(--border-soft);
+    display:flex; flex-direction:column; gap:1px;
+  }
+  .rd-meta-item:last-child { border-right:none; }
+  .rd-meta-lbl { font-size:.6rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--text-soft); }
+  .rd-meta-val { font-size:.82rem; font-weight:600; color:var(--mh-ink); }
+
+  /* ── Filter card ─────────────────────────────────────── */
+  .rd-filter {
+    background:#fff; border:1px solid var(--border-soft); border-radius:10px;
+    padding:14px 16px; margin-bottom:16px; box-shadow:var(--shadow-xs);
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;
+    align-items:end;
+  }
+
+  /* ── KPI summary grid ────────────────────────────────── */
+  .rd-kpi-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+    gap:12px; margin-bottom:16px;
+  }
+  .rd-kpi {
+    background:#fff; border:1px solid var(--border-soft); border-radius:10px;
+    box-shadow:var(--shadow-xs); padding:12px 16px;
+    border-top:3px solid var(--border-soft);
+  }
+  .rd-kpi.is-accent { border-top-color:var(--rd-accent); }
+  .rd-kpi.is-danger { border-top-color:var(--danger); }
+  .rd-kpi.is-warn   { border-top-color:var(--warning); }
+  .rd-kpi-label { font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-soft); margin-bottom:4px; }
+  .rd-kpi-value { font-size:1.45rem; font-weight:800; color:var(--mh-ink); line-height:1; font-variant-numeric:tabular-nums; }
+  .rd-kpi-sub   { font-size:.68rem; color:var(--text-muted); margin-top:3px; }
+
+  /* ── Chart card ──────────────────────────────────────── */
+  .rd-chart-card {
+    background:#fff; border:1px solid var(--border-soft); border-radius:10px;
+    box-shadow:var(--shadow-xs); padding:16px; margin-bottom:16px;
+  }
+  .rd-chart-title {
+    font-size:.76rem; font-weight:700; color:var(--mh-ink); margin-bottom:12px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .rd-chart-title::before {
+    content:''; width:3px; height:14px; border-radius:2px;
+    background:var(--rd-accent); display:inline-block;
+  }
+
+  /* ── Data table ──────────────────────────────────────── */
+  .rd-table-card {
+    background:#fff; border:1px solid var(--border-soft); border-radius:10px;
+    box-shadow:var(--shadow-xs); overflow:hidden; margin-bottom:16px;
+  }
+  .rd-table-toolbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px; border-bottom:1px solid var(--border-soft);
+    background:var(--mh-peri-soft);
+  }
+  .rd-table-title { font-size:.76rem; font-weight:700; color:var(--mh-ink); }
+  .rd-row-count   { font-size:.68rem; color:var(--text-muted); }
+  .rd-table-wrap  { overflow-x:auto; }
+  .rd-table { width:100%; border-collapse:collapse; font-size:.78rem; }
+  .rd-table thead th {
+    padding:8px 12px; text-align:left; white-space:nowrap;
+    background:var(--mh-peri-soft); border-bottom:2px solid var(--border-soft);
+    font-size:.64rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--text-muted); position:sticky; top:0;
+  }
+  .rd-table tbody tr { border-bottom:1px solid var(--border-soft); }
+  .rd-table tbody tr:hover { background:var(--mh-peri-soft); }
+  .rd-table tbody td { padding:7px 12px; white-space:nowrap; color:var(--mh-ink); }
+  .rd-table tbody td.is-number { font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace; }
+  .rd-table tbody td.is-danger { color:var(--danger); font-weight:700; }
+  .rd-table tbody td.is-warn   { color:var(--warning); font-weight:600; }
+  .rd-table td.is-muted { color:var(--text-muted); font-size:.72rem; }
+  .rd-map-link {
+    display:inline-flex; align-items:center; gap:3px;
+    font-size:.7rem; color:var(--mh-purple); text-decoration:none; font-weight:600;
+  }
+  .rd-map-link:hover { text-decoration:underline; }
+
+  /* ── Pagination ──────────────────────────────────────── */
+  .rd-pagination {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px; border-top:1px solid var(--border-soft); font-size:.76rem;
+  }
+  .rd-page-info { color:var(--text-muted); }
+  .rd-page-links { display:flex; gap:4px; }
+  .rd-page-links a, .rd-page-links span {
+    padding:4px 9px; border-radius:6px; border:1px solid var(--border-soft);
+    color:var(--mh-ink); text-decoration:none; font-size:.74rem;
+  }
+  .rd-page-links .active { background:var(--mh-purple); color:#fff; border-color:var(--mh-purple); }
+  .rd-page-links a:hover { background:var(--mh-peri-soft); }
+
+  /* ── Alert strip ─────────────────────────────────────── */
+  .rd-alert {
+    border-radius:8px; padding:9px 14px; font-size:.78rem; margin-bottom:12px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .rd-alert.info    { background:var(--mh-peri-soft); color:var(--mh-ink); border:1px solid var(--mh-peri); }
+  .rd-alert.warn    { background:rgba(245,158,11,.1); color:#92400e; border:1px solid rgba(245,158,11,.3); }
+  .rd-alert.success { background:rgba(16,185,129,.1); color:#064e3b; border:1px solid rgba(16,185,129,.3); }
+  .rd-alert.danger  { background:rgba(220,38,38,.1);  color:#7f1d1d; border:1px solid rgba(220,38,38,.3); }
+</style>
+
+  <!-- ── Page Header ─────────────────────────────────── -->
+  <div class="rd-header">
+    <div class="rd-header-left">
+      <div class="rd-domain-icon">
+        {% if domain == "speed" %}⚡{% elif domain == "fuel" %}⛽{% elif domain == "geofence" %}📍{% else %}🗺️{% endif %}
+      </div>
+      <div>
+        <div class="rd-brand">MhareReach · mTrack</div>
+        <h1 class="rd-title">{{ domain|title }} Report</h1>
+      </div>
+    </div>
+    <div class="rd-export-row">
+      <a class="btn btn-ghost btn-sm" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}preview=1&export=csv">⬇ CSV</a>
+      <a class="btn btn-ghost btn-sm" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}preview=1&export=pdf">⬇ PDF</a>
+      <a class="btn btn-primary btn-sm" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}preview=1&export=xlsx">⬇ XLSX</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'reporting-home' %}">← Hub</a>
+    </div>
+  </div>
+
+  <!-- ── Meta strip ──────────────────────────────────── -->
+  <div class="rd-meta">
+    <div class="rd-meta-item">
+      <span class="rd-meta-lbl">Organisation</span>
+      <span class="rd-meta-val">{{ request.user.organisation.name }}</span>
+    </div>
+    <div class="rd-meta-item">
+      <span class="rd-meta-lbl">Depot</span>
+      <span class="rd-meta-val">{% if active_depot %}{{ active_depot.name }}{% else %}All Depots{% endif %}</span>
+    </div>
+    <div class="rd-meta-item">
+      <span class="rd-meta-lbl">Vehicle</span>
+      <span class="rd-meta-val">{{ selected_vehicle_label }}</span>
+    </div>
+    <div class="rd-meta-item">
+      <span class="rd-meta-lbl">Generated</span>
+      <span class="rd-meta-val">{% now "d M Y · H:i" %}</span>
+    </div>
+    <div class="rd-meta-item">
+      <span class="rd-meta-lbl">Guard</span>
+      <span class="rd-meta-val">{{ max_export_days_without_vehicle }}d max without vehicle</span>
+    </div>
+  </div>
+
+  <!-- ── Filter form ─────────────────────────────────── -->
+  <form method="get" class="rd-filter">
+    <div class="form-group" style="margin:0">
+      <label>Date From</label>
+      <input class="form-control" type="date" name="date_from" value="{{ request.GET.date_from }}">
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Date To</label>
+      <input class="form-control" type="date" name="date_to" value="{{ request.GET.date_to }}">
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Vehicle</label>
+      <select class="form-control" name="vehicle">
+        <option value="">All</option>
+        {% for v in vehicles %}
+          <option value="{{ v.id }}" {% if request.GET.vehicle == v.id|stringformat:"s" %}selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:6px">
+      <input type="hidden" name="preview" value="1">
+      <button type="submit" class="btn btn-primary" style="white-space:nowrap">Load Preview</button>
+    </div>
+  </form>
+
+  <!-- ── Status alerts ───────────────────────────────── -->
+  {% if not query_ready %}
+  <div class="rd-alert info">ℹ️ Select <strong>Date From</strong> and <strong>Date To</strong> then click <strong>Load Preview</strong>.</div>
+  {% elif export_block_reason %}
+  <div class="rd-alert warn">⚠️ {{ export_block_reason }}</div>
+  {% elif preview_requested %}
+    <div class="rd-alert success">✓ Loaded {{ page_obj.paginator.count }} rows{% if total_rows > preview_limit %} — showing first {{ preview_limit }} of {{ total_rows }}{% endif %}. Exports include up to {{ export_limit }} rows.</div>
+    {% if total_rows >= export_limit %}
+    <div class="rd-alert warn">⚠️ Results capped at {{ export_limit|floatformat:0 }} rows. Narrow your date range or select a specific vehicle.</div>
+    {% endif %}
+  {% else %}
+  <div class="rd-alert info">ℹ️ Click <strong>Load Preview</strong> to run the report.</div>
+  {% endif %}
+
+  <!-- ── KPI Summary Cards ───────────────────────────── -->
+  {% if summary %}
+  <div class="rd-kpi-grid" id="kpi-grid">
+    {% for key, value in summary.items %}
+    <div class="rd-kpi {% if forloop.first %}is-accent{% endif %}" data-key="{{ key }}" data-val="{{ value }}">
+      <div class="rd-kpi-label">{{ key|cut:"_"|title }}</div>
+      <div class="rd-kpi-value" id="kpi-val-{{ forloop.counter }}">{{ value }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── Chart ──────────────────────────────────────── -->
+  {% if preview_requested and page_obj.object_list %}
+  <div class="rd-chart-card">
+    <div class="rd-chart-title">
+      {% if domain == "speed" %}Top Vehicles by Maximum Speed{% elif domain == "route" %}Trip Distance Distribution{% elif domain == "fuel" %}Fuel Level Over Time{% else %}Events by Zone{% endif %}
+    </div>
+    <canvas id="rd-chart" height="{% if domain == 'fuel' %}120{% else %}160{% endif %}"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- ── Data Table ─────────────────────────────────── -->
+  <div class="rd-table-card">
+    <div class="rd-table-toolbar">
+      <span class="rd-table-title">
+        {% if domain == "speed" %}Speed Events{% elif domain == "route" %}Trip Log{% elif domain == "fuel" %}Fuel Readings{% else %}Geofence Events{% endif %}
+      </span>
+      <span class="rd-row-count">
+        {% if page_obj.object_list %}{{ page_obj.paginator.count }} row{{ page_obj.paginator.count|pluralize }}{% else %}No data{% endif %}
+      </span>
+    </div>
+    <div class="rd-table-wrap">
+      <table class="rd-table" id="rd-table">
+        <thead>
+          <tr id="rd-thead-row">
+            {% if page_obj.object_list %}
+              {% for field, value in page_obj.object_list.0.items %}
+              <th data-field="{{ field }}">{{ field }}</th>
+              {% endfor %}
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody id="rd-tbody">
+          {% for row in page_obj %}
+          <tr>
+            {% for field, value in row.items %}
+            <td data-field="{{ field }}" data-raw="{{ value }}">{{ value }}</td>
+            {% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text-muted)">
+            No data for the selected filters. Try a different date range or vehicle.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="rd-pagination">
+      <span class="rd-page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      <div class="rd-page-links">
+        {% if page_obj.has_previous %}
+          <a href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">‹ Prev</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+          {% if num == page_obj.number %}
+            <span class="active">{{ num }}</span>
+          {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+            <a href="?{{ request.GET.urlencode }}&page={{ num }}">{{ num }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+          <a href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">Next ›</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+</div><!-- /.content-padded -->
+
+<script>
+/* ── Column label mapping ──────────────────────────── */
+const COL_LABELS = {
+  'vehicle__registration': 'Vehicle',
+  'started_at':  'Started',
+  'ended_at':    'Ended',
+  'distance_km': 'Distance (km)',
+  'max_speed_kmh': 'Max Speed (km/h)',
+  'ping_count':  'Pings',
+  'device_timestamp': 'Timestamp',
+  'fuel_level_litres': 'Fuel (L)',
+  'speed_kmh': 'Speed (km/h)',
+  'geofence__name': 'Geofence',
+  'kind': 'Event',
+  'occurred_at': 'Occurred',
+  'id': 'ID',
+  'vehicle_id': 'Vehicle ID',
+  'driver_name': 'Driver',
+};
+
+/* Float fields to round */
+const ROUND_1 = ['distance_km', 'fuel_level_litres'];
+const ROUND_0 = ['max_speed_kmh', 'speed_kmh'];
+
+/* Speed threshold for danger colouring (km/h) */
+const SPEED_DANGER = 120;
+const SPEED_WARN   = 100;
+
+/* ── Rename headers ────────────────────────────────── */
+document.querySelectorAll('#rd-thead-row th').forEach(th => {
+  const f = th.dataset.field;
+  if (COL_LABELS[f]) th.textContent = COL_LABELS[f];
+});
+
+/* ── Format & colour table cells ──────────────────── */
+document.querySelectorAll('#rd-tbody td').forEach(td => {
+  const field = td.dataset.field;
+  const raw   = td.dataset.raw;
+
+  if (!raw || raw === 'None' || raw === 'null') { td.textContent = '—'; td.classList.add('is-muted'); return; }
+
+  if (ROUND_1.includes(field)) {
+    const n = parseFloat(raw);
+    if (!isNaN(n)) { td.textContent = n.toFixed(1); td.classList.add('is-number'); }
+    return;
+  }
+  if (ROUND_0.includes(field)) {
+    const n = parseFloat(raw);
+    if (!isNaN(n)) {
+      td.textContent = Math.round(n);
+      td.classList.add('is-number');
+      if (n >= SPEED_DANGER) td.classList.add('is-danger');
+      else if (n >= SPEED_WARN) td.classList.add('is-warn');
+    }
+    return;
+  }
+  /* Lat/Lon → map link */
+  if (field.endsWith('_lat') || field.endsWith('_lon') || field === 'lat' || field === 'lon') {
+    const n = parseFloat(raw);
+    if (!isNaN(n)) {
+      td.innerHTML = `<span class="is-muted" style="font-size:.7rem;font-variant-numeric:tabular-nums">${n.toFixed(5)}</span>`;
+    }
+    return;
+  }
+});
+
+/* ── Prettify KPI values ─────────────────────────── */
+document.querySelectorAll('#kpi-grid .rd-kpi').forEach(card => {
+  const val = card.dataset.val;
+  const key = card.dataset.key;
+  const el  = card.querySelector('.rd-kpi-value');
+  if (!el) return;
+  const n = parseFloat(val);
+  if (!isNaN(n) && String(val).includes('.')) {
+    if (key.includes('distance') || key.includes('km')) el.textContent = n.toFixed(1) + ' km';
+    else if (key.includes('speed')) {
+      el.textContent = Math.round(n) + ' km/h';
+      if (n >= SPEED_DANGER) card.classList.add('is-danger');
+      else if (n >= SPEED_WARN) card.classList.add('is-warn');
+    }
+    else el.textContent = n.toFixed(1);
+  }
+});
+
+/* ── Chart.js ────────────────────────────────────── */
+{% if preview_requested and page_obj.object_list %}
+(function() {
+  const DOMAIN = '{{ domain }}';
+  const rows = [];
+  document.querySelectorAll('#rd-tbody tr').forEach(tr => {
+    const obj = {};
+    tr.querySelectorAll('td').forEach(td => { obj[td.dataset.field] = td.dataset.raw; });
+    rows.push(obj);
+  });
+  if (!rows.length) return;
+
+  const ctx = document.getElementById('rd-chart').getContext('2d');
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--rd-accent').trim() || '#8A2BE2';
+
+  if (DOMAIN === 'speed' || DOMAIN === 'route') {
+    const valueField = DOMAIN === 'speed' ? 'max_speed_kmh' : 'distance_km';
+    const label      = DOMAIN === 'speed' ? 'Max Speed (km/h)' : 'Distance (km)';
+    /* Group by vehicle, take max value, sort desc, top 12 */
+    const byVehicle = {};
+    rows.forEach(r => {
+      const v = r['vehicle__registration'] || r['vehicle_id'] || '?';
+      const n = parseFloat(r[valueField]);
+      if (!isNaN(n)) byVehicle[v] = Math.max(byVehicle[v] || 0, n);
+    });
+    const sorted = Object.entries(byVehicle).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    const labels = sorted.map(x=>x[0]);
+    const data   = sorted.map(x=> DOMAIN === 'speed' ? Math.round(x[1]) : parseFloat(x[1].toFixed(1)));
+    const colors = data.map(v =>
+      DOMAIN === 'speed' && v >= SPEED_DANGER ? 'rgba(220,38,38,.75)' :
+      DOMAIN === 'speed' && v >= SPEED_WARN   ? 'rgba(245,158,11,.75)' :
+      accent.startsWith('#') ? hexToRgba(accent, 0.72) : accent
+    );
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ label, data, backgroundColor: colors, borderRadius: 5, borderSkipped: false }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x} ${DOMAIN==='speed'?'km/h':'km'}` } }
+        },
+        scales: {
+          x: { grid:{ color:'rgba(0,0,0,.05)' }, ticks:{ font:{size:11} } },
+          y: { grid:{ display:false }, ticks:{ font:{size:11} } }
+        }
+      }
+    });
+
+  } else if (DOMAIN === 'fuel') {
+    const pts = rows
+      .map(r => ({ x: r['device_timestamp'] || r['occurred_at'] || '', y: parseFloat(r['fuel_level_litres']) }))
+      .filter(p => !isNaN(p.y) && p.x)
+      .slice(0, 100);
+    pts.sort((a,b)=>a.x.localeCompare(b.x));
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: pts.map(p=>p.x),
+        datasets: [{
+          label: 'Fuel Level (L)',
+          data: pts.map(p=>p.y),
+          borderColor: accent,
+          backgroundColor: hexToRgba(accent, 0.1),
+          fill: true, tension: 0.3, pointRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend:{ display:false } },
+        scales: {
+          x: { display:false },
+          y: { grid:{ color:'rgba(0,0,0,.05)' }, ticks:{ font:{size:11} } }
+        }
+      }
+    });
+
+  } else if (DOMAIN === 'geofence') {
+    const counts = {};
+    rows.forEach(r => {
+      const z = r['geofence__name'] || 'Unknown';
+      counts[z] = (counts[z]||0) + 1;
+    });
+    const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(x=>x[0]),
+        datasets: [{ label:'Events', data: sorted.map(x=>x[1]), backgroundColor: hexToRgba(accent,0.7), borderRadius:5, borderSkipped:false }]
+      },
+      options: {
+        indexAxis:'y', responsive:true,
+        plugins:{ legend:{display:false} },
+        scales:{
+          x:{ grid:{color:'rgba(0,0,0,.05)'}, ticks:{font:{size:11}, stepSize:1} },
+          y:{ grid:{display:false}, ticks:{font:{size:11}} }
+        }
+      }
+    });
+  }
+
+  function hexToRgba(hex, alpha) {
+    hex = hex.replace('#','');
+    const r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+})();
+{% endif %}
+</script>
+{% endblock %}

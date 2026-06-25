@@ -1,0 +1,156 @@
+{# Partial: injected into #dsp-queue via JS refresh — inherits CSS from events_live_dashboard.html #}
+
+{# ── CRITICAL ── #}
+{% if critical_alerts %}
+<div class="dsp-section-hd critical" id="section-critical">
+  CRITICAL
+  <span class="hd-count">{{ critical_count }}</span>
+</div>
+{% for alert in critical_alerts %}
+<div class="dsp-card critical" data-cat="critical" id="dcard-{{ alert.pk }}">
+  <div class="dsp-card-top">
+    <span class="dsp-card-reg">{{ alert.vehicle.registration }}</span>
+    <span class="dsp-card-kind">{{ alert.get_kind_display }}</span>
+    <span class="dsp-card-time" data-ts="{{ alert.occurred_at.isoformat }}">
+      {{ alert.occurred_at|timesince }} ago
+    </span>
+  </div>
+  {% if alert.driver_name %}<div class="dsp-driver">{{ alert.driver_name }}</div>{% endif %}
+  <div class="dsp-card-ctx">
+    {% if alert.kind == 'speeding' %}{{ alert.value|floatformat:0 }} km/h&nbsp;—&nbsp;limit {{ alert.threshold|floatformat:0 }} km/h
+    {% elif alert.kind == 'idle' %}Idle {{ alert.value|floatformat:1 }} min (threshold {{ alert.threshold|floatformat:0 }} min)
+    {% else %}{{ alert.get_kind_display }}{% if alert.value %} · {{ alert.value|floatformat:1 }}{% endif %}{% endif %}
+  </div>
+  <div class="dsp-card-actions">
+    <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+          onsubmit="this.closest('.dsp-card').classList.add('resolving')"
+          style="display:flex;gap:5px;align-items:center">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'events-live-dashboard' %}">
+      <select name="note" class="dsp-note-sel">
+        <option>Driver notified</option>
+        <option>False positive</option>
+        <option>No action needed</option>
+        <option>Under investigation</option>
+      </select>
+      <button type="submit" class="dsp-btn-resolve">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Resolve
+      </button>
+    </form>
+    {% if alert.map_lon %}
+    <button class="dsp-btn-locate" onclick="locateEvent({{ alert.map_lon }},{{ alert.map_lat }},'{{ alert.vehicle.registration|escapejs }}','{{ alert.get_kind_display|escapejs }}','{{ alert.occurred_at|timesince }} ago')">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+      Locate
+    </button>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{# ── SAFETY ── #}
+{% if safety_alerts %}
+<div class="dsp-section-hd safety" id="section-safety">
+  SAFETY
+  <span class="hd-count">{{ safety_count }}</span>
+</div>
+{% for alert in safety_alerts %}
+<div class="dsp-card safety" data-cat="safety" id="dcard-{{ alert.pk }}">
+  <div class="dsp-card-top">
+    <span class="dsp-card-reg">{{ alert.vehicle.registration }}</span>
+    <span class="dsp-card-kind">{{ alert.get_kind_display }}</span>
+    <span class="dsp-card-time" data-ts="{{ alert.occurred_at.isoformat }}">{{ alert.occurred_at|timesince }} ago</span>
+  </div>
+  {% if alert.driver_name %}<div class="dsp-driver">{{ alert.driver_name }}</div>{% endif %}
+  <div class="dsp-card-ctx">
+    {% if alert.kind == 'speeding' %}{{ alert.value|floatformat:0 }} km/h&nbsp;—&nbsp;limit {{ alert.threshold|floatformat:0 }} km/h
+    {% else %}{{ alert.get_kind_display }}{% if alert.value %} · {{ alert.value|floatformat:1 }}{% endif %}{% endif %}
+  </div>
+  <div class="dsp-card-actions">
+    <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+          onsubmit="this.closest('.dsp-card').classList.add('resolving')"
+          style="display:flex;gap:5px;align-items:center">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'events-live-dashboard' %}">
+      <select name="note" class="dsp-note-sel">
+        <option>Driver notified</option>
+        <option>False positive</option>
+        <option>No action needed</option>
+        <option>Under investigation</option>
+      </select>
+      <button type="submit" class="dsp-btn-resolve">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Resolve
+      </button>
+    </form>
+    {% if alert.map_lon %}
+    <button class="dsp-btn-locate" onclick="locateEvent({{ alert.map_lon }},{{ alert.map_lat }},'{{ alert.vehicle.registration|escapejs }}','{{ alert.get_kind_display|escapejs }}','{{ alert.occurred_at|timesince }} ago')">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+      Locate
+    </button>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{# ── OPERATIONAL (collapsed by default) ── #}
+<div class="dsp-section-hd ops" id="section-ops" onclick="toggleOps(this)">
+  <span>OPS / IDLE</span>
+  <span style="display:flex;align-items:center;gap:8px">
+    <span class="hd-count">{{ ops_count }}</span>
+    <span class="hd-chevron">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+  </span>
+</div>
+<div class="dsp-section-body collapsed" id="ops-body">
+  {% for alert in ops_alerts %}
+  <div class="dsp-card ops" data-cat="operational" id="dcard-{{ alert.pk }}">
+    <div class="dsp-card-top">
+      <span class="dsp-card-reg">{{ alert.vehicle.registration }}</span>
+      <span class="dsp-card-kind">{{ alert.get_kind_display }}</span>
+      <span class="dsp-card-time" data-ts="{{ alert.occurred_at.isoformat }}">{{ alert.occurred_at|timesince }} ago</span>
+    </div>
+    {% if alert.driver_name %}<div class="dsp-driver">{{ alert.driver_name }}</div>{% endif %}
+    <div class="dsp-card-ctx">
+      {% if alert.kind == 'idle' %}{{ alert.value|floatformat:1 }} min idle (threshold {{ alert.threshold|floatformat:0 }} min)
+      {% else %}{{ alert.get_kind_display }}{% if alert.value %} · {{ alert.value|floatformat:1 }}{% endif %}{% endif %}
+    </div>
+    <div class="dsp-card-actions">
+      <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+            onsubmit="this.closest('.dsp-card').classList.add('resolving')"
+            style="display:flex;gap:5px;align-items:center">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'events-live-dashboard' %}">
+        <select name="note" class="dsp-note-sel">
+          <option>Driver notified</option>
+          <option>False positive</option>
+          <option>No action needed</option>
+          <option>Under investigation</option>
+        </select>
+        <button type="submit" class="dsp-btn-resolve">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Resolve
+        </button>
+      </form>
+      {% if alert.map_lon %}
+      <button class="dsp-btn-locate" onclick="locateEvent({{ alert.map_lon }},{{ alert.map_lat }},'{{ alert.vehicle.registration|escapejs }}','{{ alert.get_kind_display|escapejs }}','{{ alert.occurred_at|timesince }} ago')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        Locate
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="dsp-queue-empty">No operational alerts open.</div>
+  {% endfor %}
+</div>
+
+{% if not critical_alerts and not safety_alerts and not ops_alerts %}
+<div class="dsp-queue-empty" style="padding:48px 18px">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" style="margin:0 auto 10px;display:block"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/></svg>
+  Fleet is clear — no open alerts.
+</div>
+{% endif %}

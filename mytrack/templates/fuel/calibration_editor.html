@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}{{ vehicle.registration }} — Probe Calibration — myTrack{% endblock %}
+{% block page_title %}{{ vehicle.registration }} — Probe Calibration{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'fuel-vehicle-detail' vehicle.pk %}" class="btn btn-ghost btn-sm">← Fuel History</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="margin-bottom:16px;padding:12px 16px;border-radius:8px;
+        background:{% if 'error' in msg.tags %}rgba(239,68,68,0.12){% else %}rgba(34,197,94,0.12){% endif %};
+        color:{% if 'error' in msg.tags %}var(--danger){% else %}var(--success){% endif %};
+        border:1px solid {% if 'error' in msg.tags %}rgba(239,68,68,0.25){% else %}rgba(34,197,94,0.25){% endif %}">
+        {{ msg }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start">
+
+    {% if has_poly %}
+    <!-- ── Polynomial active: status card ─────────────────────────────────────── -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Active Calibration</div>
+            <div class="card-subtitle">
+              Live N-values from the probe are converted to litres using a fitted polynomial.
+            </div>
+          </div>
+        </div>
+        <div style="padding:20px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+                      padding:16px;border-radius:8px;background:rgba(0,200,255,0.06);
+                      border:1px solid rgba(0,200,255,0.15);margin-bottom:20px">
+            <div>
+              <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;
+                          letter-spacing:0.06em;margin-bottom:4px">Method</div>
+              <div style="font-weight:600;color:var(--success)">Polynomial</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;
+                          letter-spacing:0.06em;margin-bottom:4px">Degree</div>
+              <div style="font-weight:600">{{ calibration.poly_coefficients|length|add:"-1" }}</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;
+                          letter-spacing:0.06em;margin-bottom:4px">Max N</div>
+              <div style="font-weight:600">{{ calibration.poly_max_n|floatformat:0 }}</div>
+            </div>
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            {{ formset.management_form }}
+            <input type="hidden" name="bottom_blind_litres" value="{{ calibration.bottom_blind_litres }}">
+            <input type="hidden" name="top_blind_litres"    value="{{ calibration.top_blind_litres }}">
+            <div class="form-group" style="margin:0 0 12px">
+              <label class="form-label">Notes</label>
+              <input type="text" name="notes" value="{{ calibration.notes }}" class="form-input"
+                     placeholder="e.g. Probe type, tank shape, installer name">
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm">Save notes</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- ── No polynomial: strapping table ─────────────────────────────────────── -->
+    <div>
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Strapping Table</div>
+            <div class="card-subtitle">
+              Map raw probe output to actual litres.
+              {% if point_count %}{{ point_count }} point{{ point_count|pluralize }} saved.{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <form method="post" id="calibration-form">
+          {% csrf_token %}
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:16px;padding:16px 20px 0">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Bottom Blind Area (L)
+                <span class="form-hint" title="Volume at the bottom of the tank the probe cannot reach. Added to every interpolated value.">ⓘ</span>
+              </label>
+              <input type="number" name="bottom_blind_litres" step="0.1" min="0"
+                     value="{{ calibration.bottom_blind_litres }}" class="form-input">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Top Blind Area (L)
+                <span class="form-hint" title="Expansion headroom at the top the probe cannot read.">ⓘ</span>
+              </label>
+              <input type="number" name="top_blind_litres" step="0.1" min="0"
+                     value="{{ calibration.top_blind_litres }}" class="form-input">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Notes</label>
+              <input type="text" name="notes" value="{{ calibration.notes }}" class="form-input"
+                     placeholder="e.g. Probe type, tank shape, installer name">
+            </div>
+          </div>
+
+          {{ formset.management_form }}
+
+          <div style="padding:16px 20px">
+            <table class="data-table" id="point-table">
+              <thead>
+                <tr>
+                  <th style="width:60px">#</th>
+                  <th>Raw Sensor Value<br><small style="font-weight:400;color:var(--text-muted)">%, volts, or integer</small></th>
+                  <th>Measured Volume (L)</th>
+                  <th style="width:60px">Remove</th>
+                </tr>
+              </thead>
+              <tbody id="formset-body">
+                {% for form in formset %}
+                <tr class="point-row{% if form.instance.pk %} existing{% endif %}">
+                  <td style="color:var(--text-muted);font-size:0.82rem">{{ forloop.counter }}</td>
+                  <td>
+                    {{ form.id }}
+                    <input type="number" name="{{ form.raw_value.html_name }}" step="any"
+                           value="{{ form.raw_value.value|default:'' }}" class="form-input"
+                           placeholder="e.g. 75.5">
+                    {% if form.raw_value.errors %}
+                      <div style="color:var(--danger);font-size:0.8rem">{{ form.raw_value.errors.0 }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <input type="number" name="{{ form.litres.html_name }}" step="any" min="0"
+                           value="{{ form.litres.value|default:'' }}" class="form-input"
+                           placeholder="e.g. 120">
+                    {% if form.litres.errors %}
+                      <div style="color:var(--danger);font-size:0.8rem">{{ form.litres.errors.0 }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <label style="display:flex;align-items:center;justify-content:center">
+                      <input type="checkbox" name="{{ form.DELETE.html_name }}"
+                             {% if form.DELETE.value %}checked{% endif %}
+                             style="width:16px;height:16px;accent-color:var(--danger)">
+                    </label>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div style="padding:0 20px 20px;display:flex;gap:12px;align-items:center">
+            <button type="button" id="add-row-btn" class="btn btn-ghost btn-sm">+ Add row</button>
+            <button type="submit" class="btn btn-primary btn-sm">Save calibration table</button>
+            {% if point_count >= 2 %}
+              <span style="color:var(--success);font-size:0.82rem">✓ Active — {{ point_count }} points</span>
+            {% else %}
+              <span style="color:var(--text-muted);font-size:0.82rem">Needs at least 2 points to activate</span>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+
+      {% if point_count >= 2 %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Calibration Curve Preview</div>
+          <div class="card-subtitle">Piecewise linear interpolation active</div>
+        </div>
+        <canvas id="calChart" height="80" style="padding:0 16px 16px"></canvas>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Right panel: tabbed import ─────────────────────────────────────────── -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">{% if has_poly %}Replace calibration{% else %}Import calibration{% endif %}</div>
+        </div>
+
+        <!-- Tab buttons -->
+        <div style="display:flex;border-bottom:1px solid var(--border);padding:0 16px">
+          <button class="cal-tab cal-tab--active" data-tab="excel"
+                  style="padding:10px 14px;font-size:0.85rem;background:none;border:none;
+                         cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent)">
+            Excel
+          </button>
+          <button class="cal-tab" data-tab="poly"
+                  style="padding:10px 14px;font-size:0.85rem;background:none;border:none;
+                         cursor:pointer;border-bottom:2px solid transparent;color:var(--text-muted)">
+            Poly string
+          </button>
+          <button class="cal-tab" data-tab="csv"
+                  style="padding:10px 14px;font-size:0.85rem;background:none;border:none;
+                         cursor:pointer;border-bottom:2px solid transparent;color:var(--text-muted)">
+            CSV
+          </button>
+        </div>
+
+        <!-- Excel tab -->
+        <div id="tab-excel" class="cal-panel" style="padding:16px">
+          <form method="post" enctype="multipart/form-data"
+                action="{% url 'fuel-calibration-import-excel' vehicle.pk %}">
+            {% csrf_token %}
+            <div class="form-group">
+              <label class="form-label">.xlsx file</label>
+              <input type="file" name="excel_file" accept=".xlsx,.xls" class="form-input" style="padding:6px">
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;line-height:1.6">
+              Column A: <strong>FUEL</strong> (litres) &nbsp;·&nbsp; Column B: <strong>SENSOR N VALUE</strong><br>
+              Header row is auto-detected. Comma decimals (e.g. <code>5,034</code>) are handled.<br>
+              Needs ≥ 13 data rows.
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%">
+              Upload &amp; Fit Polynomial
+            </button>
+          </form>
+        </div>
+
+        <!-- Poly string tab -->
+        <div id="tab-poly" class="cal-panel" style="display:none;padding:16px">
+          <form method="post" action="{% url 'fuel-calibration-import-poly' vehicle.pk %}">
+            {% csrf_token %}
+            <div class="form-group">
+              <label class="form-label">Coefficient string</label>
+              <textarea name="poly_string" rows="5" class="form-input"
+                        style="font-family:monospace;font-size:0.75rem;resize:vertical"
+                        placeholder="-1.409e-30,...,4.96e-01,1.16:1024;60"></textarea>
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;line-height:1.6">
+              Format: <code>c_n,…,c_0 : max_N ; tank_litres</code>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%">
+              Load Polynomial
+            </button>
+          </form>
+        </div>
+
+        <!-- CSV tab -->
+        <div id="tab-csv" class="cal-panel" style="display:none;padding:16px">
+          <form method="post" enctype="multipart/form-data"
+                action="{% url 'fuel-calibration-import' vehicle.pk %}">
+            {% csrf_token %}
+            <div class="form-group">
+              <label class="form-label">CSV file</label>
+              <input type="file" name="csv_file" accept=".csv,.txt" class="form-input" style="padding:6px">
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;line-height:1.6">
+              Two columns: <code>raw_value</code>, <code>litres</code>.<br>
+              Header row is optional and auto-detected.
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm" style="width:100%">
+              Upload &amp; Import
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</div>
+
+<script>
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.cal-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.cal-tab').forEach(b => {
+      b.style.borderBottomColor = 'transparent';
+      b.style.color = 'var(--text-muted)';
+      b.classList.remove('cal-tab--active');
+    });
+    document.querySelectorAll('.cal-panel').forEach(p => p.style.display = 'none');
+
+    btn.style.borderBottomColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+    btn.classList.add('cal-tab--active');
+    document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+  });
+});
+
+{% if not has_poly %}
+// ── Formset: add row ──────────────────────────────────────────────────────────
+const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
+document.getElementById('add-row-btn').addEventListener('click', () => {
+  const tbody  = document.getElementById('formset-body');
+  const idx    = parseInt(totalFormsInput.value, 10);
+  const rowNum = tbody.querySelectorAll('tr').length + 1;
+  const row    = document.createElement('tr');
+  row.className = 'point-row';
+  row.innerHTML = `
+    <td style="color:var(--text-muted);font-size:0.82rem">${rowNum}</td>
+    <td><input type="number" name="form-${idx}-raw_value" step="any" class="form-input" placeholder="e.g. 75.5">
+        <input type="hidden" name="form-${idx}-id" value=""></td>
+    <td><input type="number" name="form-${idx}-litres" step="any" min="0" class="form-input" placeholder="e.g. 120"></td>
+    <td><label style="display:flex;align-items:center;justify-content:center">
+          <input type="checkbox" name="form-${idx}-DELETE" style="width:16px;height:16px;accent-color:var(--danger)">
+        </label></td>
+  `;
+  tbody.appendChild(row);
+  totalFormsInput.value = idx + 1;
+});
+
+{% if point_count >= 2 %}
+// ── Calibration curve chart ───────────────────────────────────────────────────
+(async () => {
+  const { default: Chart } = await import('https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js');
+  const rawInputs = document.querySelectorAll('[name$="-raw_value"]');
+  const litInputs = document.querySelectorAll('[name$="-litres"]');
+  const pts = [];
+  rawInputs.forEach((el, i) => {
+    const rv = parseFloat(el.value);
+    const lv = parseFloat(litInputs[i]?.value);
+    if (!isNaN(rv) && !isNaN(lv)) pts.push({x: rv, y: lv});
+  });
+  pts.sort((a, b) => a.x - b.x);
+  if (pts.length < 2) return;
+  new Chart(document.getElementById('calChart'), {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: 'Calibration curve',
+        data: pts,
+        borderColor: '#00C8FF',
+        backgroundColor: 'rgba(0,200,255,0.07)',
+        pointRadius: 4,
+        fill: true,
+        tension: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: 'Raw sensor value' }, type: 'linear' },
+        y: { title: { display: true, text: 'Litres' }, beginAtZero: true },
+      }
+    }
+  });
+})();
+{% endif %}
+{% endif %}
+</script>
+{% endblock %}

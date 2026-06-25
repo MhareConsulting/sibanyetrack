@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Document Vault — myTrack{% endblock %}
+{% block page_title %}Document Vault{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'document-upload' %}" class="btn btn-primary btn-sm">+ Upload Document</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Vehicle</label>
+      <select name="vehicle" class="form-control">
+        <option value="">All vehicles</option>
+        {% for v in vehicles %}
+        <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:180px">
+      <label>Document type</label>
+      <select name="kind" class="form-control">
+        <option value="">All types</option>
+        {% for val, label in kind_choices %}
+        <option value="{{ val }}"{% if kind_filter == val %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if vehicle_filter or kind_filter %}
+    <a href="{% url 'document-list' %}" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Type</th>
+          <th>Label</th>
+          <th>Expiry</th>
+          <th>Status</th>
+          <th>Uploaded</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in page_obj %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ doc.vehicle.registration }}</td>
+          <td>{{ doc.get_kind_display }}</td>
+          <td style="color:var(--text-muted)">{{ doc.label|default:"—" }}</td>
+          <td style="color:var(--text-muted)">{{ doc.expiry_date|date:"d M Y"|default:"—" }}</td>
+          <td>
+            {% if doc.expiry_status == 'ok' %}
+              <span class="badge badge-ok">Valid</span>
+            {% elif doc.expiry_status == 'warning' %}
+              <span class="badge badge-warning">Expiring soon</span>
+            {% elif doc.expiry_status == 'expired' %}
+              <span class="badge badge-expired">Expired</span>
+            {% else %}
+              <span class="badge badge-unknown">No expiry</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ doc.uploaded_at|date:"d M Y" }}</td>
+          <td style="text-align:right;padding-right:16px;display:flex;gap:6px;justify-content:flex-end">
+            <a href="{{ doc.file.url }}" target="_blank" class="btn btn-ghost btn-sm">View</a>
+            <form method="post" action="{% url 'document-delete' doc.pk %}" onsubmit="return confirm('Delete this document?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted)">No documents uploaded yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&vehicle={{ vehicle_filter }}&kind={{ kind_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&vehicle={{ vehicle_filter }}&kind={{ kind_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Geofences — myTrack{% endblock %}
+{% block page_title %}Geofences{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'geofence-add' %}" class="btn btn-primary btn-sm">
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+  Add Geofence
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <style>
+    .geo-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+    .geo-stat {
+      grid-column: span 3;
+      padding: 16px;
+    }
+    .geo-stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--mh-ink);
+      line-height: 1.2;
+    }
+    .geo-stat-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .geo-main {
+      grid-column: span 8;
+    }
+    .geo-side {
+      grid-column: span 4;
+    }
+    .geo-table-wrap {
+      max-height: 540px;
+      overflow: auto;
+    }
+    @media (max-width: 1200px) {
+      .geo-stat { grid-column: span 6; }
+      .geo-main, .geo-side { grid-column: span 12; }
+    }
+    @media (max-width: 760px) {
+      .geo-stat { grid-column: span 12; }
+    }
+  </style>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'warning' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="geo-grid">
+    <div class="card geo-stat">
+      <div class="geo-stat-value">{{ fleet_stats.total_vehicles }}</div>
+      <div class="geo-stat-label">Total vehicles in organisation</div>
+    </div>
+    <div class="card geo-stat">
+      <div class="geo-stat-value">{{ fleet_stats.active_vehicles }}</div>
+      <div class="geo-stat-label">Active vehicles</div>
+    </div>
+    <div class="card geo-stat">
+      <div class="geo-stat-value">{{ fleet_stats.active_depots }}</div>
+      <div class="geo-stat-label">Active depots</div>
+    </div>
+    <div class="card geo-stat">
+      <div class="geo-stat-value">{{ fleet_stats.crossings_24h }}</div>
+      <div class="geo-stat-label">Fence crossings in last 24 hours</div>
+    </div>
+
+    <!-- Geofences table -->
+    <div class="geo-main">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="card-header" style="padding:16px 20px">
+          <div>
+            <div class="card-title">Geofences</div>
+            <div class="card-subtitle">
+              {{ geofences|length }} total fence{{ geofences|length|pluralize }} · {{ fleet_stats.active_fences }} active
+            </div>
+          </div>
+        </div>
+        {% if geofences %}
+        <div class="geo-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Vertices</th>
+                <th>24h Events</th>
+                <th>Total Events</th>
+                <th>Last Activity</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for fence in geofences %}
+              <tr>
+                <td style="font-weight:600;color:var(--mh-ink)">{{ fence.name }}</td>
+                <td style="color:var(--text-muted);font-size:0.82rem">{{ fence.polygon|length }}</td>
+                <td style="color:var(--text-muted);font-size:0.82rem">{{ fence.events_24h }}</td>
+                <td style="color:var(--text-muted);font-size:0.82rem">{{ fence.total_events }}</td>
+                <td style="color:var(--text-muted);font-size:0.82rem">
+                  {% if fence.last_event_at %}
+                    {{ fence.last_event_at|timesince }} ago
+                  {% else %}
+                    Never
+                  {% endif %}
+                </td>
+                <td>
+                  {% if fence.is_active %}
+                    <span class="badge badge-ok">Active</span>
+                  {% else %}
+                    <span class="badge badge-unknown">Inactive</span>
+                  {% endif %}
+                </td>
+                <td style="text-align:right;padding-right:16px">
+                  <div style="display:flex;gap:6px;justify-content:flex-end">
+                    <a href="{% url 'geofence-edit' fence.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                    <form method="post" action="{% url 'geofence-delete' fence.pk %}"
+                          onsubmit="return confirm('Delete {{ fence.name }}?')">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="padding:40px 20px;text-align:center;color:var(--text-muted)">
+          <svg width="36" height="36" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin:0 auto 10px;display:block;opacity:.35"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/></svg>
+          <p style="font-weight:600;color:var(--mh-ink);margin-bottom:4px">No geofences yet</p>
+          <p style="font-size:0.84rem">Click Add Geofence to draw one on the map.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Depot & recent events -->
+    <div class="geo-side" style="display:grid;gap:16px">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="card-header" style="padding:16px 20px">
+          <div>
+            <div class="card-title">Depot Coverage</div>
+            <div class="card-subtitle">Vehicles assigned per depot</div>
+          </div>
+        </div>
+        {% if depot_breakdown %}
+        <div style="padding:8px 0">
+          {% for depot in depot_breakdown %}
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid var(--border-soft)">
+            <div>
+              <div style="font-size:0.85rem;font-weight:600;color:var(--mh-ink)">{{ depot.name }}</div>
+              <div style="font-size:0.74rem;color:var(--text-muted)">
+                {{ depot.active_vehicle_count }} active / {{ depot.vehicle_count }} total
+              </div>
+            </div>
+            <span class="badge {% if depot.active_vehicle_count > 0 %}badge-ok{% else %}badge-unknown{% endif %}">
+              {{ depot.active_vehicle_count }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:20px;color:var(--text-muted);font-size:0.84rem">
+          No depots configured yet.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="card-header" style="padding:16px 20px">
+          <div>
+            <div class="card-title">Recent Events</div>
+            <div class="card-subtitle">Last 50 fence crossings</div>
+          </div>
+        </div>
+        {% if recent_events %}
+        <div style="max-height:480px;overflow-y:auto">
+          {% for ev in recent_events %}
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border-soft)">
+            <div style="width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+                        background:{% if ev.kind == 'enter' %}#d1fae5{% else %}#fee2e2{% endif %}">
+              {% if ev.kind == 'enter' %}
+              <svg width="14" height="14" fill="none" stroke="#065f46" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+              {% else %}
+              <svg width="14" height="14" fill="none" stroke="#991b1b" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+              {% endif %}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.84rem;font-weight:600;color:var(--mh-ink)">
+                {{ ev.vehicle.registration }}
+                <span style="font-weight:400;color:var(--text-muted)">
+                  {% if ev.kind == 'enter' %}entered{% else %}exited{% endif %}
+                  {{ ev.geofence.name }}
+                </span>
+              </div>
+              {% if ev.vehicle.home_depot %}
+              <div style="font-size:0.74rem;color:var(--text-muted)">Depot: {{ ev.vehicle.home_depot.name }}</div>
+              {% endif %}
+              {% if ev.driver_name %}
+              <div style="font-size:0.75rem;color:var(--text-muted)">{{ ev.driver_name }}</div>
+              {% endif %}
+            </div>
+            <div style="font-size:0.72rem;color:var(--text-soft);white-space:nowrap;flex-shrink:0">
+              {{ ev.occurred_at|timesince }} ago
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:0.88rem">
+          No events yet — events appear here when vehicles cross fence boundaries.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

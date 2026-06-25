@@ -1,0 +1,96 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% block title %}Assets — myTrack{% endblock %}
+{% block header_title %}Assets{% endblock %}
+{% block content %}
+<div class="m-actions-bar">
+  <span>Actions</span>
+  <div class="m-actions-icons">
+    <a href="{% url 'mobile-map' %}" class="m-action-icon" id="act-map" title="Map"></a>
+    <button type="button" class="m-action-icon" id="act-share" title="Share"></button>
+    <a href="{% url 'vehicle-list' %}" class="m-action-icon" id="act-manage" title="Manage"></a>
+  </div>
+</div>
+<div class="m-search-row">
+  <button type="button" class="m-search-btn" id="search-toggle" aria-label="Search"></button>
+  <input type="search" id="asset-search" placeholder="Search registration…" style="display:none;flex:1;margin-left:8px;padding:10px;border:1px solid var(--border);border-radius:10px">
+</div>
+<div class="m-scroll-page" id="assets-list">
+  <p class="m-empty">Loading assets…</p>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/icons.js' %}"></script>
+<script src="{% static 'mobile/share.js' %}"></script>
+<script>
+(function() {
+  function fillIcon(el, name, cls) {
+    if (!el || !window.MhareIcons) return;
+    el.innerHTML = MhareIcons.iconHtml(name, cls || "m-action-icon-svg");
+  }
+  fillIcon(document.getElementById("act-map"), "map");
+  fillIcon(document.getElementById("act-share"), "navigation");
+  fillIcon(document.getElementById("act-manage"), "users");
+  fillIcon(document.getElementById("search-toggle"), "search");
+  const listEl = document.getElementById("assets-list");
+  const searchInput = document.getElementById("asset-search");
+  let all = [];
+
+  document.getElementById("search-toggle").addEventListener("click", () => {
+    const show = searchInput.style.display !== "none";
+    searchInput.style.display = show ? "none" : "block";
+    if (!show) searchInput.focus();
+  });
+  searchInput.addEventListener("input", () => render(searchInput.value.trim().toLowerCase()));
+
+  function render(q) {
+    const filtered = q ? all.filter(v => v.registration.toLowerCase().includes(q) || (v.label||"").toLowerCase().includes(q)) : all;
+    if (!filtered.length) {
+      listEl.innerHTML = '<p class="m-empty">No assets found</p>';
+      return;
+    }
+    listEl.innerHTML = filtered.map(v => `
+      <div class="m-asset-list-card" data-id="${v.id}">
+        <div class="car-icon">${MyTrackMobile.vehicleIconHtml()}</div>
+        <div class="m-asset-info">
+          <div class="m-asset-reg">${v.registration}</div>
+          <div class="m-asset-sub">${v.label !== v.registration ? v.label : v.registration}</div>
+          <div class="m-asset-service">MhareReach · myTrack</div>
+        </div>
+        <span class="m-bell${v.open_alert_count ? ' active' : ''}" data-bell></span>
+        <button type="button" class="m-pin-btn" data-pin="${v.id}" aria-label="Show on map"></button>
+      </div>`).join("");
+
+    listEl.querySelectorAll("[data-pin]").forEach(btn => {
+      fillIcon(btn, "map-pin", "m-pin-icon");
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        location.href = `/app/map/?vehicle=${btn.dataset.pin}`;
+      });
+    });
+    listEl.querySelectorAll("[data-bell]").forEach(el => fillIcon(el, "bell", "m-bell-icon"));
+    listEl.querySelectorAll(".m-asset-list-card").forEach(card => {
+      card.addEventListener("click", () => location.href = `/app/map/?vehicle=${card.dataset.id}`);
+    });
+  }
+
+  document.getElementById("act-share").addEventListener("click", async () => {
+    if (!all.length) return;
+    await MyTrackShare.shareAsset(all[0].id);
+  });
+
+  async function load() {
+    try {
+      const d = await MyTrackMobile.api("/vehicles/");
+      all = d.vehicles;
+      render("");
+    } catch (_) {
+      listEl.innerHTML = '<p class="m-empty">Failed to load assets</p>';
+    }
+  }
+
+  document.addEventListener("mytrack:bootstrap", load);
+  if (MyTrackMobile.bootstrap) load();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ driver.full_name }} — myTrack{% endblock %}
+{% block page_title %}{{ driver.full_name }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'driver-edit' driver.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <!-- Back link -->
+  <a href="{% url 'driver-list' %}" style="display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-muted);text-decoration:none;margin-bottom:20px">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    All Drivers
+  </a>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:24px">
+
+    <!-- Profile -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Profile</span></div>
+      <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:0.84rem">
+        <dt style="color:var(--text-muted);font-weight:600">Phone</dt>
+        <dd>{{ driver.phone_e164|default:"—" }}</dd>
+        <dt style="color:var(--text-muted);font-weight:600">ID Number</dt>
+        <dd>{{ driver.id_number|default:"—" }}</dd>
+        <dt style="color:var(--text-muted);font-weight:600">Vehicle</dt>
+        <dd>{{ driver.default_vehicle|default:"—" }}</dd>
+        <dt style="color:var(--text-muted);font-weight:600">Status</dt>
+        <dd>{% if driver.is_active %}<span class="badge badge-ok">Active</span>{% else %}<span class="badge badge-unknown">Inactive</span>{% endif %}</dd>
+      </dl>
+    </div>
+
+    <!-- Compliance -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Compliance</span></div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-soft);margin-bottom:6px">Driver's Licence</div>
+        <div style="font-weight:600;font-size:0.9rem;color:var(--mh-ink)">{{ driver.get_licence_code_display|default:"Not set" }}</div>
+        {% if driver.licence_expiry %}
+          <div style="margin-top:6px">
+            <span class="badge badge-{{ driver.licence_status }}">
+              {{ driver.licence_expiry|date:"d M Y" }} &middot;
+              {% if driver.licence_days_remaining < 0 %}EXPIRED
+              {% else %}{{ driver.licence_days_remaining }} days remaining{% endif %}
+            </span>
+          </div>
+        {% endif %}
+      </div>
+      <div>
+        <div style="font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-soft);margin-bottom:6px">PDP</div>
+        <div style="font-weight:600;font-size:0.9rem;color:var(--mh-ink)">{{ driver.pdp_number|default:"Not set" }}</div>
+        {% if driver.pdp_expiry %}
+          <div style="margin-top:6px">
+            <span class="badge badge-{{ driver.pdp_status }}">
+              {{ driver.pdp_expiry|date:"d M Y" }} &middot;
+              {% if driver.pdp_days_remaining < 0 %}EXPIRED
+              {% else %}{{ driver.pdp_days_remaining }} days remaining{% endif %}
+            </span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if driver.notes %}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Notes</span></div>
+      <p style="font-size:0.84rem;color:var(--text-muted);line-height:1.6">{{ driver.notes }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent pings -->
+  {% if recent_pings %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border-soft)">
+      <span class="card-title">Recent GPS Pings</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Time</th><th>Latitude</th><th>Longitude</th><th>Speed</th></tr>
+      </thead>
+      <tbody>
+        {% for ping in recent_pings %}
+        <tr>
+          <td style="color:var(--text-muted)">{{ ping.received_at|date:"d M H:i:s" }}</td>
+          <td style="font-family:monospace;font-size:0.8rem">{{ ping.lat|floatformat:5 }}</td>
+          <td style="font-family:monospace;font-size:0.8rem">{{ ping.lon|floatformat:5 }}</td>
+          <td>{% if ping.speed_kmh %}{{ ping.speed_kmh|floatformat:0 }} km/h{% else %}<span style="color:var(--text-soft)">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Inspection — {{ log.vehicle }} — myTrack{% endblock %}
+{% block page_title %}Inspection Detail{% endblock %}
+
+{% block extra_head %}
+<style>
+@media (max-width: 640px) {
+  .insp-detail-grid { grid-template-columns: 1fr 1fr !important; }
+  .insp-checklist { grid-template-columns: 1fr !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:720px">
+
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Compliance &middot; Inspections</div>
+      <h1>{{ log.vehicle.registration }} — {{ log.submitted_at|date:"d M Y H:i" }}</h1>
+    </div>
+    <div class="page-header-actions">
+      <a href="{% url 'inspection-list' %}" class="btn btn-ghost btn-sm">← Back</a>
+    </div>
+  </div>
+
+  <!-- Summary card -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><div class="card-title">Summary</div></div>
+    <div class="insp-detail-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;font-size:0.88rem">
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:3px">Vehicle</div>
+        <div style="font-weight:600;color:var(--mh-ink)">{{ log.vehicle.registration }}</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:3px">Driver</div>
+        <div style="color:var(--mh-ink)">{{ log.driver_name|default:"—" }}</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:3px">Type</div>
+        <div style="color:var(--mh-ink)">{{ log.get_inspection_type_display }}</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:3px">Odometer</div>
+        <div style="color:var(--mh-ink)">{% if log.odometer_km %}{{ log.odometer_km|floatformat:0 }} km{% else %}—{% endif %}</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:3px">Submitted</div>
+        <div style="color:var(--mh-ink)">{{ log.submitted_at|date:"d M Y H:i" }}</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:3px">Result</div>
+        <div>
+          {% if log.result == 'pass' %}
+            <span class="badge badge-ok">Pass</span>
+          {% elif log.result == 'defect' %}
+            <span class="badge" style="background:#fef3c7;color:#92400e">Defect Noted</span>
+          {% else %}
+            <span class="badge badge-expired">Fail</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checklist card -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><div class="card-title">Checklist</div></div>
+    <div class="insp-checklist" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px">
+      {% for key, label, checked in checklist_display %}
+      <div style="display:flex;align-items:center;gap:10px;padding:9px;border-radius:8px;background:{% if checked %}#f0fdf4{% else %}#fff5f5{% endif %}">
+        <span style="font-size:1rem;font-weight:700;color:{% if checked %}#065f46{% else %}#991b1b{% endif %}">
+          {% if checked %}✓{% else %}✗{% endif %}
+        </span>
+        <span style="font-size:0.88rem;font-weight:500;color:var(--mh-ink)">{{ label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Defects -->
+  {% if log.defects %}
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #dc2626">
+    <div class="card-header"><div class="card-title" style="color:#dc2626">Defects Noted</div></div>
+    <div style="font-size:0.9rem;color:var(--mh-ink);white-space:pre-line">{{ log.defects }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Notes -->
+  {% if log.notes %}
+  <div class="card">
+    <div class="card-header"><div class="card-title">Notes</div></div>
+    <div style="font-size:0.9rem;color:var(--text-muted);white-space:pre-line">{{ log.notes }}</div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

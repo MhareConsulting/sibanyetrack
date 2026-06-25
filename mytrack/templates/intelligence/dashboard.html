@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Fleet Intelligence — myTrack{% endblock %}
+{% block page_title %}Fleet Intelligence{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  {% if fleet_health %}
+  <div class="card" style="padding:20px 24px;margin-bottom:24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">
+    <div>
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Fleet Health Score</div>
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-size:3rem;font-weight:900;color:{% if fleet_health.score >= 75 %}#059669{% elif fleet_health.score >= 45 %}#d97706{% else %}#dc2626{% endif %}">{{ fleet_health.score|floatformat:0 }}</span>
+        <span style="font-size:1.5rem;font-weight:800;color:var(--text-muted)">/100</span>
+        <span style="font-size:1.4rem;font-weight:800;padding:4px 12px;border-radius:8px;background:{% if fleet_health.grade == 'A' %}#dcfce7{% elif fleet_health.grade == 'B' %}#dbeafe{% elif fleet_health.grade == 'C' %}#fef9c3{% elif fleet_health.grade == 'D' %}#fed7aa{% else %}#fee2e2{% endif %};color:{% if fleet_health.grade == 'A' %}#166534{% elif fleet_health.grade == 'B' %}#1d4ed8{% elif fleet_health.grade == 'C' %}#854d0e{% elif fleet_health.grade == 'D' %}#9a3412{% else %}#991b1b{% endif %}">{{ fleet_health.grade }}</span>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">as of {{ fleet_health.score_date|date:"d M Y" }}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;flex:1;min-width:280px">
+      <div style="text-align:center">
+        <div style="font-size:1.3rem;font-weight:800;color:var(--mh-ink)">{{ fleet_health.driver_component|floatformat:0 }}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Drivers (40%)</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.3rem;font-weight:800;color:var(--mh-ink)">{{ fleet_health.alert_component|floatformat:0 }}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Alerts (30%)</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.3rem;font-weight:800;color:var(--mh-ink)">{{ fleet_health.compliance_component|floatformat:0 }}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Compliance (20%)</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.3rem;font-weight:800;color:var(--mh-ink)">{{ fleet_health.utilisation_component|floatformat:0 }}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Utilisation (10%)</div>
+      </div>
+    </div>
+    {% if health_sparkline %}
+    <div style="min-width:120px">
+      <svg width="120" height="36" viewBox="0 0 120 36" style="overflow:visible">
+        <polyline points="{{ health_sparkline }}" fill="none" stroke="var(--mh-purple)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:2px">30-day trend</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+    <div class="card" style="padding:20px 24px">
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">On Road Now</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--mh-ink)">{{ vehicles_on_road }}</div>
+      <div style="font-size:0.75rem;color:var(--text-soft);margin-top:2px">last 10 minutes</div>
+    </div>
+    <div class="card" style="padding:20px 24px">
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">km Today</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--mh-ink)">{{ total_km_today }}</div>
+      <div style="font-size:0.75rem;color:var(--text-soft);margin-top:2px">km driven across fleet</div>
+    </div>
+    <div class="card" style="padding:20px 24px">
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Alerts Today</div>
+      <div style="font-size:2rem;font-weight:800;color:{% if alerts_today %}#dc2626{% else %}var(--mh-ink){% endif %}">{{ alerts_today }}</div>
+      <div style="font-size:0.75rem;margin-top:2px"><a href="{% url 'alert-list' %}" style="color:var(--mh-purple)">view alerts →</a></div>
+    </div>
+    <div class="card" style="padding:20px 24px">
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Geofence Events</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--mh-ink)">{{ geofence_events_today }}</div>
+      <div style="font-size:0.75rem;color:var(--text-soft);margin-top:2px">today</div>
+    </div>
+  </div>
+
+  {% if co2_today is not None %}
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px">
+    <div class="card" style="padding:20px 24px">
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">CO₂ Today</div>
+      <div style="font-size:2rem;font-weight:800;color:#16a34a">{{ co2_today|floatformat:1 }} kg</div>
+      <div style="font-size:0.75rem;color:var(--text-soft);margin-top:2px">estimated emissions</div>
+    </div>
+    <div class="card" style="padding:20px 24px">
+      <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">CO₂ MTD</div>
+      <div style="font-size:2rem;font-weight:800;color:#16a34a">{{ co2_mtd|floatformat:1 }} kg</div>
+      <div style="font-size:0.75rem;color:var(--text-soft);margin-top:2px">month to date</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="card-header" style="padding:16px 20px">
+      <div>
+        <div class="card-title">Fleet Status — Today</div>
+        <div class="card-subtitle">Distance is straight-line depot-to-last-position</div>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:24px"></th>
+          <th>Vehicle</th>
+          <th>Driver</th>
+          <th>km Today</th>
+          <th>Time on Road</th>
+          <th>Top Speed</th>
+          <th>Last Seen</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><span class="status-dot dot-{{ row.status }}"></span></td>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ row.vehicle.registration }}</td>
+          <td style="color:var(--text-muted)">{{ row.driver|default:"—" }}</td>
+          <td>{% if row.km_today %}{{ row.km_today }} km{% else %}—{% endif %}</td>
+          <td>{% if row.time_min %}{{ row.time_min }} min{% else %}—{% endif %}</td>
+          <td>{% if row.top_speed %}{{ row.top_speed }} km/h{% else %}—{% endif %}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">
+            {% if row.last_seen %}{{ row.last_seen|timesince }} ago{% else %}—{% endif %}
+          </td>
+          <td style="text-align:right;padding-right:16px">
+            {% if row.latest_trip_id %}
+            <a href="{% url 'trip-replay' row.latest_trip_id %}" class="btn btn-ghost btn-sm">Replay</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

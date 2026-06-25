@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Devices — myTrack{% endblock %}
+{% block page_title %}Devices{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <a href="{% url 'device-add' %}" class="btn btn-primary btn-sm">+ Add Device</a>
+    <form method="get" style="display:flex;gap:8px;flex:1;max-width:360px">
+      <input name="q" value="{{ q }}" placeholder="Search IMEI or registration…"
+             style="flex:1;border:1px solid var(--border-soft);border-radius:8px;padding:7px 12px;font-size:0.83rem;outline:none">
+      <button type="submit" class="btn btn-ghost btn-sm">Search</button>
+      {% if q %}<a href="{% url 'device-list' %}" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
+    </form>
+    <span style="font-size:0.8rem;color:var(--text-muted);margin-left:auto">{{ devices|length }} device{{ devices|length|pluralize }}</span>
+  </div>
+
+  {% if devices %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>IMEI</th>
+          <th>Model</th>
+          <th>Phone</th>
+          <th>Vehicle</th>
+          <th>Last Activity</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in devices %}
+        <tr>
+          <td>
+            {% if d.status == "online" %}
+              <span class="status-dot dot-online"></span>
+            {% elif d.status == "stale" %}
+              <span class="status-dot dot-stale"></span>
+            {% else %}
+              <span class="status-dot dot-offline"></span>
+            {% endif %}
+          </td>
+          <td style="font-weight:700;font-family:monospace;font-size:0.82rem">{{ d.imei }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ d.model_name|default:"—" }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ d.phone_number|default:"—" }}</td>
+          <td>
+            {% if d.vehicle %}
+              <a href="{% url 'vehicle-edit' d.vehicle.pk %}"
+                 style="color:var(--mh-purple);text-decoration:none;font-weight:500;font-size:0.82rem">
+                {{ d.vehicle.label|default:d.vehicle.registration }}
+              </a>
+            {% else %}
+              <span style="color:var(--text-soft);font-size:0.82rem">Unlinked</span>
+            {% endif %}
+          </td>
+          <td style="font-size:0.81rem;color:var(--text-muted)">
+            {% if d.last_activity %}{{ d.last_activity|timesince }} ago{% else %}Never{% endif %}
+          </td>
+          <td style="text-align:right;padding-right:16px">
+            <a href="{% url 'device-detail' d.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="padding:40px;text-align:center">
+    <p style="color:var(--text-muted);font-size:0.9rem;margin:0">
+      {% if q %}No devices match "{{ q }}".{% else %}No devices yet. <a href="{% url 'device-add' %}" style="color:var(--mh-purple)">Add one manually</a> or wait for pings to arrive with an IMEI field.{% endif %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

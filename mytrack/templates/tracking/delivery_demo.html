@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delivery Tracking — Demo</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f7f8fb;
+      display: flex; flex-direction: column; height: 100dvh;
+      color: #0a0a0a;
+    }
+
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 14px 20px;
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .brand-dot {
+      width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+      background: linear-gradient(135deg, #00C8FF 0%, #8A2BE2 100%);
+    }
+    .header-text h1 { font-size: 0.95rem; font-weight: 700; }
+    .header-text p  { font-size: 0.8rem; color: #6b7280; margin-top: 1px; }
+
+    .demo-banner {
+      background: linear-gradient(135deg, rgba(0,200,255,0.08) 0%, rgba(138,43,226,0.08) 100%);
+      border-bottom: 1px solid #C5CAE9;
+      padding: 8px 20px;
+      font-size: 0.78rem; font-weight: 600; color: #5c35b5;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+
+    #map { flex: 1; z-index: 0; }
+
+    .delivered-banner {
+      display: none;
+      background: #d1fae5;
+      border-top: 1px solid #6ee7b7;
+      padding: 16px 20px;
+      text-align: center; flex-shrink: 0;
+    }
+    .delivered-banner .tick { font-size: 1.5rem; }
+    .delivered-banner strong { display: block; font-size: 1rem; color: #065f46; margin-top: 4px; }
+    .delivered-banner span { font-size: 0.82rem; color: #047857; }
+
+    .stats {
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      padding: 12px 20px;
+      display: flex; flex-shrink: 0;
+    }
+    .stat { flex: 1; text-align: center; padding: 0 8px; }
+    .stat + .stat { border-left: 1px solid #e5e7eb; }
+    .stat-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9ca3af; }
+    .stat-value { font-size: 1.1rem; font-weight: 800; color: #0a0a0a; margin-top: 2px; }
+
+    .live-dot {
+      display: inline-block; width: 7px; height: 7px;
+      background: #22c55e; border-radius: 50%; margin-right: 5px;
+      animation: pulse 2s ease infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    .footer {
+      background: #fff; border-top: 1px solid #f0f1f5;
+      padding: 7px 20px; font-size: 0.74rem; color: #9ca3af; flex-shrink: 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .demo-controls { display: flex; gap: 8px; }
+    .demo-btn {
+      font-size: 0.72rem; font-weight: 600; padding: 4px 10px;
+      border-radius: 6px; border: 1px solid #e5e7eb; background: #fff;
+      cursor: pointer; color: #374151;
+    }
+    .demo-btn:hover { background: #f3f4f6; }
+    .demo-btn.active { background: #8A2BE2; color: #fff; border-color: #8A2BE2; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand-dot"></div>
+    <div class="header-text">
+      <h1>Hello Sipho — your delivery is on the way</h1>
+      <p>Order #ZA-20483 · 2× Cartons, 1× Pallet</p>
+    </div>
+  </div>
+
+  <div class="demo-banner">
+    ✦ Demo mode — simulated vehicle moving in real time
+  </div>
+
+  <!-- Stop position banner -->
+  <div id="stopBanner" style="display:flex;background:#fef3c7;border-bottom:1px solid #fcd34d;padding:10px 20px;font-size:0.84rem;font-weight:600;color:#92400e;flex-shrink:0;align-items:center;gap:8px;">
+    <span id="stopBadge" style="background:#f59e0b;color:#fff;font-size:0.72rem;font-weight:800;padding:2px 8px;border-radius:999px;flex-shrink:0;">Stop 4 of 4</span>
+    <span id="stopText">3 deliveries ahead of yours.</span>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="delivered-banner" id="deliveredBanner">
+    <div class="tick">✅</div>
+    <strong>Delivered</strong>
+    <span id="deliveredAt"></span>
+  </div>
+
+  <div class="stats" id="statsStrip">
+    <div class="stat">
+      <div class="stat-label">Distance</div>
+      <div class="stat-value" id="statDistance">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">ETA</div>
+      <div class="stat-value" id="statEta">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Speed</div>
+      <div class="stat-value" id="statSpeed">—</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>
+      <span class="live-dot" id="liveDot"></span>
+      <span id="footerStatus">Simulating movement…</span>
+    </div>
+    <div class="demo-controls">
+      <button class="demo-btn" id="btnSkipToClose" onclick="skipToClose()">Skip → nearly there</button>
+      <button class="demo-btn" id="btnDeliver" onclick="markDelivered()">Mark delivered</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+{% include "tracking/snippets/trip_route_stops.js.inc" %}
+    // ── Simulated route: Johannesburg CBD → Sandton City ──────────────────────
+    const ROUTE = [
+      [-26.2041,  28.0473],  // Start: Johannesburg CBD
+      [-26.1980,  28.0490],
+      [-26.1910,  28.0510],
+      [-26.1860,  28.0540],
+      [-26.1800,  28.0580],
+      [-26.1760,  28.0590],
+      [-26.1720,  28.0620],
+      [-26.1680,  28.0640],
+      [-26.1630,  28.0660],
+      [-26.1580,  28.0700],
+      [-26.1550,  28.0720],
+      [-26.1520,  28.0740],
+      [-26.1490,  28.0780],
+      [-26.1462,  28.0568],  // Destination: Sandton City
+    ];
+    const DESTINATION = ROUTE[ROUTE.length - 1];
+    const DEST_ADDRESS = "Sandton City Mall, Sandton, Johannesburg";
+    const SPEED_KMH = 55;
+
+    let stepIndex = 0;
+    let delivered = false;
+
+    // ── Map setup ─────────────────────────────────────────────────────────────
+    const map = L.map('map').setView([-26.175, 28.065], 13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 20
+    }).addTo(map);
+
+    const routeGroup = L.layerGroup().addTo(map);
+
+    function buildStaticDemoPings() {
+      const out = [];
+      let T = Date.now() - 8 * 3600000;
+      ROUTE.forEach((coord, i) => {
+        if (i === 6) {
+          for (let k = 0; k < 10; k++) {
+            out.push({
+              lat: coord[0],
+              lon: coord[1],
+              ts: new Date(T).toISOString(),
+              speed_kmh: 0,
+              routeIdx: 6,
+            });
+            T += 240000;
+          }
+        }
+        out.push({
+          lat: coord[0],
+          lon: coord[1],
+          ts: new Date(T).toISOString(),
+          speed_kmh: SPEED_KMH,
+          routeIdx: i,
+        });
+        T += 120000;
+      });
+      return out;
+    }
+    const ALL_DEMO_PINGS = buildStaticDemoPings();
+
+    const vehicleIcon = L.divIcon({
+      html: `<div style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="26" viewBox="0 0 18 26" style="display:block">
+        <rect x="2" y="4" width="14" height="18" rx="4" fill="#8A2BE2" stroke="#fff" stroke-width="1.5"/>
+        <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
+        <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
+        <rect x="5" y="2" width="8" height="3" rx="2" fill="#8A2BE2" opacity=".7"/>
+        <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        <rect x="15.5" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+      </svg></div>`,
+      iconSize: [18, 26], iconAnchor: [9, 13], className: ''
+    });
+    const destIcon = L.divIcon({
+      html: `<div style="background:#dc2626;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(220,38,38,0.5)"></div>`,
+      iconSize: [16, 16], iconAnchor: [8, 8], className: ''
+    });
+
+    const vehicleMarker = L.marker(ROUTE[0], { icon: vehicleIcon }).addTo(map)
+      .bindPopup('<strong>CA 123-456</strong>');
+    const destMarker = L.marker(DESTINATION, { icon: destIcon }).addTo(map)
+      .bindPopup(DEST_ADDRESS);
+
+    L.polyline(ROUTE, { color: '#C5CAE9', weight: 2, opacity: 0.45 }).addTo(map);
+
+    const group = L.featureGroup([vehicleMarker, destMarker]);
+    map.fitBounds(group.getBounds().pad(0.2));
+
+    leafRebuildRouteVisuals(
+      routeGroup,
+      ALL_DEMO_PINGS.filter((p) => p.routeIdx <= 0),
+      ROUTE[0],
+      DESTINATION
+    );
+
+    // ── Haversine ─────────────────────────────────────────────────────────────
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371, r = Math.PI / 180;
+      const dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLon/2)**2;
+      return R * 2 * Math.asin(Math.sqrt(a));
+    }
+
+    function fmtEta(mins) {
+      if (mins < 1) return '< 1 min';
+      if (mins < 60) return `~${mins} min`;
+      const h = Math.floor(mins/60), m = mins%60;
+      return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+    }
+    function fmtDist(km) {
+      return km < 1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`;
+    }
+
+    // ── Stop banner update ────────────────────────────────────────────────────
+    const STOP_NUMBER  = 4;
+    const TOTAL_STOPS  = 4;
+
+    function updateStopBanner(stepIdx) {
+      const progress = stepIdx / (ROUTE.length - 1); // 0 → 1
+      // Simulate: stops_ahead drops from 3 → 2 → 1 → 0 as vehicle progresses
+      const stopsAhead = Math.max(0, STOP_NUMBER - 1 - Math.floor(progress * STOP_NUMBER));
+      const badge = document.getElementById('stopBadge');
+      const text  = document.getElementById('stopText');
+      const banner = document.getElementById('stopBanner');
+      badge.textContent = `Stop ${STOP_NUMBER} of ${TOTAL_STOPS}`;
+      if (stopsAhead === 0) {
+        text.textContent = "You're next — the driver is heading your way.";
+        banner.style.background = '#d1fae5';
+        banner.style.borderColor = '#6ee7b7';
+        banner.style.color = '#065f46';
+        badge.style.background = '#10b981';
+      } else {
+        text.textContent = stopsAhead === 1
+          ? '1 delivery ahead of yours — almost there.'
+          : `${stopsAhead} deliveries ahead of yours.`;
+        banner.style.background = '#fef3c7';
+        banner.style.borderColor = '#fcd34d';
+        banner.style.color = '#92400e';
+        badge.style.background = '#f59e0b';
+      }
+    }
+
+    // ── Simulation tick ───────────────────────────────────────────────────────
+    function tick() {
+      if (delivered) return;
+      if (stepIndex >= ROUTE.length - 1) {
+        markDelivered();
+        return;
+      }
+
+      stepIndex++;
+      const pos = ROUTE[stepIndex];
+      vehicleMarker.setLatLng(pos);
+      const prev = ROUTE[stepIndex - 1];
+      const bearing = Math.atan2(pos[1] - prev[1], pos[0] - prev[0]) * 180 / Math.PI;
+      const svgEl = vehicleMarker.getElement()?.querySelector('svg');
+      if (svgEl) svgEl.style.transform = `rotate(${bearing}deg)`;
+      const visible = ALL_DEMO_PINGS.filter((p) => p.routeIdx <= stepIndex);
+      leafRebuildRouteVisuals(routeGroup, visible, pos, DESTINATION);
+
+      const distKm = haversineKm(pos[0], pos[1], DESTINATION[0], DESTINATION[1]);
+      const etaMins = Math.round((distKm / SPEED_KMH) * 60);
+
+      document.getElementById('statDistance').textContent = fmtDist(distKm);
+      document.getElementById('statEta').textContent = fmtEta(etaMins);
+      document.getElementById('statSpeed').textContent = `${SPEED_KMH} km/h`;
+      document.getElementById('footerStatus').textContent =
+        `Updated ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})} · simulated`;
+
+      updateStopBanner(stepIndex);
+    }
+
+    function skipToClose() {
+      stepIndex = Math.max(ROUTE.length - 3, stepIndex);
+      tick();
+    }
+
+    function markDelivered() {
+      if (delivered) return;
+      delivered = true;
+      document.getElementById('statsStrip').style.display = 'none';
+      document.getElementById('deliveredBanner').style.display = 'block';
+      document.getElementById('liveDot').style.background = '#10b981';
+      document.getElementById('liveDot').style.animation = 'none';
+      const t = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      document.getElementById('deliveredAt').textContent = `Completed at ${t}`;
+      document.getElementById('footerStatus').textContent = 'Delivery complete';
+      document.getElementById('btnSkipToClose').style.display = 'none';
+      document.getElementById('btnDeliver').style.display = 'none';
+      routeGroup.clearLayers();
+    }
+
+    // Advance one step every 2 seconds (demo speed)
+    setInterval(tick, 2000);
+    tick(); // initial position update
+  </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Edit Vehicle — myTrack{% endblock %}
+{% block page_title %}Edit Vehicle{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:480px">
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'warning' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="form-group">
+        <label>Registration</label>
+        <input type="text" name="registration" class="form-control"
+               value="{{ form.registration.value|default:'' }}" required style="font-family:monospace;font-weight:700">
+        {% if form.registration.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.registration.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label>Label <span style="color:var(--text-soft);font-weight:400">(optional)</span></label>
+        <input type="text" name="label" class="form-control" value="{{ form.label.value|default:'' }}">
+      </div>
+
+      <div class="form-group">
+        <label>Home Depot</label>
+        <select name="home_depot" class="form-control">
+          <option value="">— No depot —</option>
+          {% for depot in form.fields.home_depot.queryset %}
+          <option value="{{ depot.pk }}" {% if form.home_depot.value|stringformat:"s" == depot.pk|stringformat:"s" %}selected{% endif %}>
+            {{ depot.name }}
+          </option>
+          {% endfor %}
+        </select>
+        {% if form.home_depot.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.home_depot.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" name="is_active" id="id_is_active"
+               {% if form.is_active.value %}checked{% endif %}
+               style="width:16px;height:16px;accent-color:var(--mh-purple)">
+        <label for="id_is_active" style="margin-bottom:0;font-weight:500">Active</label>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+        <a href="{% url 'vehicle-list' %}" class="btn btn-ghost btn-sm">Cancel</a>
+        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

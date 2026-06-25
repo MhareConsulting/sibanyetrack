@@ -1,0 +1,73 @@
+<tr id="alert-row-{{ alert.pk }}">
+  <td style="width:36px;text-align:center;padding:0 8px">
+    <input type="checkbox" class="alert-select-cb" value="{{ alert.pk }}"
+           style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary,#8A2BE2)">
+  </td>
+  <td>
+    <span class="badge {% if alert.kind == 'speeding' %}badge-expired{% else %}badge-unknown{% endif %}">
+      {{ alert.get_kind_display }}
+    </span>
+  </td>
+  <td style="font-weight:600;color:var(--mh-ink)">{{ alert.vehicle.registration }}</td>
+  <td style="color:var(--text-muted);font-size:0.82rem">{{ alert.driver_name|default:"—" }}</td>
+  <td>
+    {% if alert.kind == 'speeding' %}{{ alert.value|floatformat:0 }} km/h
+    {% else %}{{ alert.value|floatformat:1 }} min{% endif %}
+  </td>
+  <td style="color:var(--text-muted);font-size:0.82rem">
+    {% if alert.kind == 'speeding' %}&gt; {{ alert.threshold|floatformat:0 }} km/h
+    {% else %}&gt; {{ alert.threshold|floatformat:0 }} min{% endif %}
+  </td>
+  <td style="font-size:0.82rem;color:var(--text-muted)">{{ alert.occurred_at|timesince }} ago</td>
+  <td>
+    {% if alert.resolved_at %}
+      <span class="badge badge-ok">Resolved</span>
+    {% else %}
+      <span class="badge badge-expired">Open</span>
+    {% endif %}
+  </td>
+  <td style="text-align:center">
+    {% for v in alert.video_assets.all %}
+      {% if forloop.first %}
+      <a href="{% url 'video-detail' v.pk %}" title="View video evidence"
+         style="display:inline-flex;align-items:center;gap:4px;font-size:0.82rem;
+                color:#1e3a5f;font-weight:600;text-decoration:none">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <polygon points="23 7 16 12 23 17 23 7"/>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
+        Clip
+      </a>
+      {% endif %}
+    {% empty %}
+      <span style="color:var(--text-muted)">—</span>
+    {% endfor %}
+  </td>
+  <td style="text-align:right;padding-right:16px;white-space:nowrap;width:1%">
+    {% if not alert.resolved_at %}
+    <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+          hx-post="{% url 'alert-resolve' alert.pk %}"
+          hx-target="#alert-row-{{ alert.pk }}"
+          hx-swap="outerHTML"
+          style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+      {% csrf_token %}
+      <select name="note" class="form-control"
+              style="font-size:0.78rem;padding:3px 6px;width:140px;height:auto">
+        <option value="Driver notified">Driver notified</option>
+        <option value="False positive">False positive</option>
+        <option value="No action needed">No action needed</option>
+        <option value="Under investigation">Under investigation</option>
+      </select>
+      <button type="submit" class="btn btn-ghost btn-sm">Resolve</button>
+    </form>
+    {% else %}
+    <span style="font-size:0.78rem;color:var(--text-muted)">
+      {% if alert.resolution_note %}{{ alert.resolution_note }}{% endif %}
+      {% if alert.resolved_by %}<br>by {{ alert.resolved_by.get_full_name|default:alert.resolved_by.email }}{% endif %}
+    </span>
+    {% endif %}
+  </td>
+</tr>

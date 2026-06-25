@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Driver Scores{% endblock %}
+{% block page_title %}Driver Scores{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Intelligence</div>
+      <h1>Driver Scores</h1>
+      <p>7-day safety ranking — higher is safer (0–100)</p>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:36px;">#</th>
+          <th>Driver</th>
+          <th>Vehicle</th>
+          <th>Score</th>
+          <th>Trend (7d)</th>
+          <th>Trips</th>
+          <th>Distance</th>
+          <th>Speeding</th>
+          <th>Harsh Accel</th>
+          <th>Idle (min)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% with s=row.latest %}
+        <tr>
+          <td style="color:var(--text-soft);font-weight:700;">{{ forloop.counter }}</td>
+          <td style="font-weight:600;">{{ row.driver.full_name }}</td>
+          <td style="color:var(--text-muted);">
+            {% if row.driver.default_vehicle %}{{ row.driver.default_vehicle.registration }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if s %}
+              {% if s.score >= 80 %}
+                <span class="badge badge-ok" style="font-size:0.82rem;padding:3px 12px;">{{ s.score }}</span>
+              {% elif s.score >= 60 %}
+                <span class="badge badge-warning" style="font-size:0.82rem;padding:3px 12px;">{{ s.score }}</span>
+              {% else %}
+                <span class="badge badge-expired" style="font-size:0.82rem;padding:3px 12px;">{{ s.score }}</span>
+              {% endif %}
+            {% else %}
+              <span class="badge badge-unknown">No data</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.trend > 0 %}
+              <span style="color:#10b981;font-weight:700;">▲ +{{ row.trend }}</span>
+            {% elif row.trend < 0 %}
+              <span style="color:#dc2626;font-weight:700;">▼ {{ row.trend }}</span>
+            {% else %}
+              <span style="color:var(--text-soft);">— flat</span>
+            {% endif %}
+          </td>
+          <td>{% if s %}{{ s.trips }}{% else %}—{% endif %}</td>
+          <td>{% if s %}{{ s.distance_km|floatformat:1 }} km{% else %}—{% endif %}</td>
+          <td>
+            {% if s %}
+              {% if s.speeding_events > 0 %}
+                <span style="color:#dc2626;font-weight:600;">{{ s.speeding_events }}</span>
+              {% else %}0{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if s %}
+              {% if s.harsh_accel_events > 0 %}
+                <span style="color:#f59e0b;font-weight:600;">{{ s.harsh_accel_events }}</span>
+              {% else %}0{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{% if s %}{{ s.idling_minutes|floatformat:0 }}{% else %}—{% endif %}</td>
+          <td>
+            <a href="{% url 'driver-score-detail' row.driver.pk %}" class="btn btn-ghost btn-sm">Detail →</a>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:48px;">
+    <div style="font-size:2rem;margin-bottom:12px;">📊</div>
+    <p style="color:var(--text-muted);">No driver score data yet. Run <code>manage.py score_drivers</code> to generate scores.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

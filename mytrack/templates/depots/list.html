@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Depots — myTrack{% endblock %}
+{% block page_title %}Depots{% endblock %}
+
+{% block topbar_actions %}
+{% if is_admin %}
+<a href="{% url 'depot-add' %}" class="btn btn-primary btn-sm">
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+  Add Depot
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'warning' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if depots %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;align-items:stretch">
+    {% for depot in depots %}
+    <a href="{% url 'depot-detail' depot.pk %}" style="text-decoration:none;display:flex">
+      <div class="card" style="padding:20px;cursor:pointer;width:100%;display:flex;flex-direction:column;transition:box-shadow 140ms ease,transform 140ms ease"
+           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
+           onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
+          <div>
+            <div class="eyebrow">Depot</div>
+            <div style="font-size:1.05rem;font-weight:800;color:var(--mh-ink);letter-spacing:-0.01em">{{ depot.name }}</div>
+            {% if depot.address %}
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">{{ depot.address }}</div>
+            {% endif %}
+          </div>
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--mh-gradient-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--mh-purple)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:16px;font-size:0.82rem;margin-top:auto;padding-top:14px">
+          <div>
+            <div style="font-size:1.3rem;font-weight:800;color:var(--mh-ink)">{{ depot.vehicles.count }}</div>
+            <div style="color:var(--text-muted)">home vehicles</div>
+          </div>
+          {% if depot.open_time and depot.close_time %}
+          <div style="border-left:1px solid var(--border-soft);padding-left:16px">
+            <div style="font-weight:600;color:var(--mh-ink)">{{ depot.open_time|time:"H:i" }} – {{ depot.close_time|time:"H:i" }}</div>
+            <div style="color:var(--text-muted)">operating hours</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:64px 24px;color:var(--text-muted)">
+    <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;opacity:.35"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+    <p style="font-weight:600;color:var(--mh-ink);margin-bottom:4px">No depots yet</p>
+    <p style="font-size:0.84rem">Depots group your vehicles and control dispatcher access.</p>
+    {% if is_admin %}
+    <a href="{% url 'depot-add' %}" class="btn btn-primary btn-sm" style="margin-top:16px">Add Depot</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

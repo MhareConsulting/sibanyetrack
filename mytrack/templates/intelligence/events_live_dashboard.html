@@ -1,0 +1,1142 @@
+{% extends "base.html" %}
+{% block title %}Dispatcher Console — MhareReach · myTrack{% endblock %}
+{% block page_title %}Dispatcher Console{% endblock %}
+
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   DISPATCHER CONSOLE — DESIGN SYSTEM
+   Color semantics:
+     critical  #dc2626  red     — immediate danger
+     safety    #ea580c  orange  — driving behaviour
+     ops       #6b7280  grey    — efficiency / noise
+     resolved  #16a34a  green   — cleared
+     brand     #7c3aed  purple  — chrome / selection
+═══════════════════════════════════════════════════ */
+
+/* ── Dark-mode CSS variable cascade ─────────────────
+   .dsp.dark overrides inherited globals so every
+   descendant automatically gets the dark palette.
+────────────────────────────────────────────────── */
+.dsp {
+  --dsp-bg:          #f4f5f9;
+  --dsp-surface:     #ffffff;
+  --dsp-ring-track:  #f0f2f5;
+}
+.dsp.dark {
+  /* Override global tokens — cascade down to all children */
+  --border:          #252a3a;
+  --border-soft:     #1d2032;
+  --text-muted:      #8892a4;
+  --text-soft:       #5b6478;
+  --mh-ink:          #e8eaf0;
+  /* Local dark vars */
+  --dsp-bg:          #0d0f18;
+  --dsp-surface:     #161927;
+  --dsp-ring-track:  #252a3a;
+  background:        #0d0f18;
+}
+
+/* Full-bleed layout */
+.dsp { display:flex; flex-direction:column; height:100%; overflow:hidden; background:var(--dsp-bg); }
+
+/* ── Critical banner ──────────────────────────────── */
+.dsp-banner {
+  display:flex; align-items:center; gap:12px;
+  padding:0 18px; height:46px; flex-shrink:0;
+  background: linear-gradient(100deg, #991b1b 0%, #7f1d1d 55%, #6b1616 100%);
+  border-bottom: 1px solid rgba(0,0,0,.25);
+  color:#fff; font-size:0.82rem; font-weight:700; letter-spacing:.01em;
+}
+.dsp-banner-pulse {
+  width:9px; height:9px; border-radius:50%; background:#fff; flex-shrink:0;
+  animation: dsppulse 1.2s ease-in-out infinite;
+}
+@keyframes dsppulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(.8)} }
+.dsp-banner-icon { flex-shrink:0; opacity:.9; }
+.dsp-banner-text { flex:1; }
+.dsp-banner-jump {
+  display:inline-flex; align-items:center; gap:5px;
+  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.32);
+  color:#fff; font-size:0.72rem; font-weight:700; border-radius:6px;
+  padding:4px 12px; cursor:pointer; white-space:nowrap;
+  transition:background 140ms;
+}
+.dsp-banner-jump:hover { background:rgba(255,255,255,.26); }
+.dsp-banner-dismiss {
+  width:28px; height:28px; background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2); border-radius:6px;
+  color:rgba(255,255,255,.8); cursor:pointer; flex-shrink:0;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:background 140ms;
+}
+.dsp-banner-dismiss:hover { background:rgba(255,255,255,.22); color:#fff; }
+
+/* ── Triage strip ─────────────────────────────────── */
+.dsp-triage {
+  display:flex; gap:6px; align-items:center;
+  padding:7px 14px; background:var(--dsp-surface);
+  border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap;
+  transition:background 200ms, border-color 200ms;
+}
+.dsp-triage-brand {
+  font-size:0.7rem; font-weight:800; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--text-muted); margin-right:4px; white-space:nowrap;
+}
+.dsp-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 12px; border-radius:20px; cursor:pointer;
+  font-size:0.75rem; font-weight:700;
+  border:1.5px solid transparent; transition:all 120ms; user-select:none;
+}
+.dsp-pill .pill-count { font-size:0.9rem; font-weight:800; }
+.dsp-pill-critical { color:#dc2626; border-color:#fecaca; background:#fff5f5; }
+.dsp-pill-critical.active,.dsp-pill-critical:hover { background:#dc2626; color:#fff; border-color:#dc2626; }
+.dsp-pill-safety   { color:#ea580c; border-color:#fed7aa; background:#fff7ed; }
+.dsp-pill-safety.active,.dsp-pill-safety:hover   { background:#ea580c; color:#fff; border-color:#ea580c; }
+.dsp-pill-ops      { color:#6b7280; border-color:#e5e7eb; background:#f9fafb; }
+.dsp-pill-ops.active,.dsp-pill-ops:hover      { background:#6b7280; color:#fff; border-color:#6b7280; }
+.dsp-pill-resolved { color:#16a34a; border-color:#bbf7d0; background:#f0fdf4; cursor:default; }
+.dsp-pill-all      { color:#7c3aed; border-color:#ddd6fe; background:#faf5ff; }
+.dsp-pill-all.active,.dsp-pill-all:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+
+/* Dark adjustments for pills */
+.dsp.dark .dsp-pill-critical { background:#1a0a0a; }
+.dsp.dark .dsp-pill-safety   { background:#1a0e04; }
+.dsp.dark .dsp-pill-ops      { background:#1a1c24; border-color:#252a3a; }
+.dsp.dark .dsp-pill-resolved { background:#0a1a0d; }
+.dsp.dark .dsp-pill-all      { background:#160f2a; border-color:#3b2c6e; }
+
+.dsp-triage-clock {
+  margin-left:auto; font-family:monospace; font-size:0.82rem;
+  font-weight:700; color:var(--text-muted); letter-spacing:.04em;
+}
+.dsp-theme-btn {
+  width:30px; height:30px; border-radius:8px;
+  border:1.5px solid var(--border); background:var(--dsp-surface);
+  color:var(--text-muted); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all 120ms; flex-shrink:0;
+}
+.dsp-theme-btn:hover { border-color:#7c3aed; color:#7c3aed; background:#faf5ff; }
+.dsp.dark .dsp-theme-btn:hover { background:#1e1640; }
+
+/* ── Main split pane ──────────────────────────────── */
+.dsp-main { flex:1; min-height:0; display:grid; grid-template-columns:40% 8px 60%; }
+
+/* ── Drag handles ─────────────────────────────────── */
+.dsp-vdivider {
+  background:var(--border); cursor:col-resize;
+  display:flex; align-items:center; justify-content:center;
+  user-select:none; flex-shrink:0; z-index:5; transition:background 120ms;
+}
+.dsp-vdivider:hover,.dsp-vdivider.dragging { background:#c4b5fd; }
+.dsp-vdivider::after {
+  content:''; display:block; width:3px; height:32px;
+  border-radius:2px; background:#9ca3af;
+}
+.dsp-vdivider:hover::after,.dsp-vdivider.dragging::after { background:#7c3aed; }
+
+.dsp-hdivider {
+  height:8px; background:var(--border); cursor:row-resize;
+  display:flex; align-items:center; justify-content:center;
+  user-select:none; flex-shrink:0; z-index:5; transition:background 120ms;
+}
+.dsp-hdivider:hover,.dsp-hdivider.dragging { background:#c4b5fd; }
+.dsp-hdivider::after {
+  content:''; display:block; width:32px; height:3px;
+  border-radius:2px; background:#9ca3af;
+}
+.dsp-hdivider:hover::after,.dsp-hdivider.dragging::after { background:#7c3aed; }
+
+/* ── Alert queue ──────────────────────────────────── */
+.dsp-queue {
+  overflow-y:auto; border-right:1px solid var(--border);
+  background:var(--dsp-surface); transition:background 200ms;
+}
+.dsp-section-hd {
+  position:sticky; top:0; z-index:2;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 14px; font-size:0.68rem; font-weight:800;
+  text-transform:uppercase; letter-spacing:.09em;
+  border-bottom:1px solid var(--border);
+}
+.dsp-section-hd.critical { background:#fef2f2; color:#dc2626; }
+.dsp-section-hd.safety   { background:#fff7ed; color:#ea580c; }
+.dsp-section-hd.ops      { background:#f9fafb; color:#6b7280; cursor:pointer; }
+.dsp.dark .dsp-section-hd.critical { background:#1a0808; }
+.dsp.dark .dsp-section-hd.safety   { background:#1a0e05; }
+.dsp.dark .dsp-section-hd.ops      { background:#131621; }
+.dsp-section-hd .hd-count {
+  font-size:0.74rem; padding:1px 8px; border-radius:10px; font-weight:700;
+}
+.dsp-section-hd.critical .hd-count { background:#dc2626; color:#fff; }
+.dsp-section-hd.safety   .hd-count { background:#ea580c; color:#fff; }
+.dsp-section-hd.ops      .hd-count { background:#6b7280; color:#fff; }
+.dsp-section-hd .hd-chevron { transition:transform 200ms; display:flex; align-items:center; }
+.dsp-section-hd.collapsed .hd-chevron { transform:rotate(-90deg); }
+
+/* Alert card */
+.dsp-card {
+  display:flex; flex-direction:column; gap:5px;
+  padding:11px 14px 11px 18px;
+  border-bottom:1px solid var(--border-soft);
+  border-left:4px solid transparent;
+  transition:background 100ms, opacity 300ms;
+}
+.dsp-card.critical { border-left-color:#dc2626; }
+.dsp-card.safety   { border-left-color:#ea580c; }
+.dsp-card.ops      { border-left-color:#d1d5db; }
+.dsp-card:hover    { background:#fafafa; }
+.dsp.dark .dsp-card:hover { background:#1c2035; }
+.dsp-card.resolving { opacity:.3; pointer-events:none; }
+
+.dsp-card-top { display:flex; align-items:baseline; gap:8px; }
+.dsp-card-reg  { font-size:0.97rem; font-weight:800; color:var(--mh-ink); letter-spacing:.02em; }
+.dsp-card-kind { font-size:0.78rem; font-weight:600; color:var(--text-muted); }
+.dsp-card-time { margin-left:auto; font-size:0.72rem; color:var(--text-soft); font-family:monospace; white-space:nowrap; }
+.dsp-card-time.stale { color:#d97706; font-weight:700; }
+.dsp-card-ctx  { font-size:0.75rem; color:var(--text-muted); }
+.dsp-driver    { font-size:0.72rem; color:var(--text-soft); }
+
+.dsp-card-actions { display:flex; gap:6px; align-items:center; margin-top:3px; }
+
+/* ── Queue buttons — redesigned ─────────────────────
+   Resolve: solid green primary action
+   Locate:  outline purple secondary action
+────────────────────────────────────────────────── */
+.dsp-btn-resolve {
+  font-size:0.71rem; font-weight:700; padding:4px 12px;
+  border-radius:7px; border:1.5px solid #16a34a;
+  background:#16a34a; color:#fff; cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px;
+  transition:background 120ms, border-color 120ms;
+}
+.dsp-btn-resolve:hover { background:#15803d; border-color:#15803d; }
+.dsp-btn-resolve svg { flex-shrink:0; }
+
+.dsp-note-sel {
+  font-size:0.71rem; padding:4px 6px; border:1.5px solid var(--border);
+  border-radius:7px; background:var(--dsp-surface); color:var(--mh-ink); outline:none;
+  max-width:130px; transition:background 200ms;
+}
+.dsp-btn-locate {
+  font-size:0.71rem; font-weight:700; padding:4px 10px;
+  border-radius:7px; border:1.5px solid #7c3aed;
+  background:transparent; cursor:pointer; color:#7c3aed;
+  display:inline-flex; align-items:center; gap:4px;
+  transition:background 120ms;
+}
+.dsp-btn-locate:hover { background:#faf5ff; }
+.dsp.dark .dsp-btn-locate:hover { background:#1e1640; }
+.dsp-btn-locate svg { flex-shrink:0; }
+
+/* ops section collapse */
+.dsp-section-body.collapsed { display:none; }
+
+/* Queue empty states */
+.dsp-queue-empty { padding:28px 18px; text-align:center; color:var(--text-muted); font-size:0.83rem; }
+
+/* ── Map panel ────────────────────────────────────── */
+.dsp-map-wrap { position:relative; }
+#dsp-map { width:100%; height:100%; }
+.dsp-map-legend {
+  position:absolute; bottom:28px; left:12px; z-index:10;
+  background:rgba(255,255,255,.93); border-radius:8px;
+  border:1px solid var(--border); padding:7px 12px;
+  display:flex; gap:10px; font-size:0.71rem; font-weight:600;
+  box-shadow:var(--shadow-sm);
+}
+.dsp.dark .dsp-map-legend { background:rgba(22,25,39,.93); }
+.dsp-legend-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
+.dsp-map-fitbtn {
+  position:absolute; top:10px; left:10px; z-index:10;
+  background:#fff; border:1px solid var(--border); border-radius:8px;
+  padding:5px 12px; font-size:0.73rem; font-weight:700; cursor:pointer;
+  color:#7c3aed; box-shadow:var(--shadow-sm);
+  display:inline-flex; align-items:center; gap:5px;
+}
+.dsp-map-fitbtn:hover { background:#faf5ff; }
+.dsp.dark .dsp-map-fitbtn { background:#1e2234; color:#a78bfa; }
+.dsp.dark .dsp-map-fitbtn:hover { background:#25284a; }
+.dsp-map-fitbtn.event-active {
+  background:#7c3aed; color:#fff; border-color:#7c3aed;
+  animation:fitpulse 1.8s ease-in-out infinite;
+}
+@keyframes fitpulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.4)} 50%{box-shadow:0 0 0 6px rgba(124,58,237,0)} }
+
+/* Event pin marker */
+.dsp-event-pin {
+  width:16px; height:16px; border-radius:50%;
+  background:#7c3aed; border:2px solid #fff;
+  box-shadow:0 0 0 0 rgba(124,58,237,.7);
+  animation:evtping 1.4s ease-out infinite; cursor:pointer;
+}
+@keyframes evtping {
+  0%   { box-shadow:0 0 0 0 rgba(124,58,237,.7); }
+  70%  { box-shadow:0 0 0 12px rgba(124,58,237,0); }
+  100% { box-shadow:0 0 0 0 rgba(124,58,237,0); }
+}
+.maplibregl-popup-content {
+  border-radius:8px !important; padding:10px 14px !important;
+  font-family:inherit !important; font-size:0.78rem !important;
+  box-shadow:0 4px 16px rgba(0,0,0,.14) !important; min-width:170px;
+}
+.dsp-popup-reg  { font-size:0.95rem; font-weight:800; color:var(--mh-ink); }
+.dsp-popup-kind { font-size:0.76rem; font-weight:600; color:#ea580c; margin:2px 0; }
+.dsp-popup-time { font-size:0.72rem; color:var(--text-muted); font-family:monospace; }
+
+/* ── Bottom analytics strip ───────────────────────── */
+.dsp-bottom {
+  height:165px; flex-shrink:0;
+  display:grid; grid-template-columns:1fr 2fr 1fr;
+  border-top:none; background:var(--dsp-surface);
+  transition:background 200ms;
+}
+.dsp-panel {
+  padding:10px 16px; border-right:1px solid var(--border-soft); overflow:hidden;
+}
+.dsp-panel:last-child { border-right:none; }
+.dsp-panel-title {
+  font-size:0.65rem; font-weight:800; text-transform:uppercase;
+  letter-spacing:.09em; color:var(--text-muted); margin-bottom:8px;
+}
+
+/* Offender rows */
+.dsp-off-row { display:flex; align-items:center; gap:7px; font-size:0.75rem; margin-bottom:5px; }
+.dsp-off-reg { font-weight:700; color:var(--mh-ink); width:80px; flex-shrink:0; font-size:0.73rem; }
+.dsp-off-bar-wrap { flex:1; height:7px; background:var(--dsp-ring-track); border-radius:4px; overflow:hidden; }
+.dsp-off-bar { height:100%; border-radius:4px; background:#7c3aed; }
+.dsp-off-n { font-weight:700; color:var(--text-muted); min-width:22px; text-align:right; font-size:0.72rem; }
+
+/* Shift timeline */
+.dsp-timeline-wrap { position:relative; height:80px; }
+canvas#chartTimeline { width:100% !important; }
+
+/* ── KPI Radial Rings ─────────────────────────────── */
+.dsp-ring-pair {
+  display:flex; gap:12px; height:100%;
+  align-items:center; justify-content:space-around;
+}
+.dsp-ring-item { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; min-width:0; }
+.dsp-ring-label {
+  font-size:0.62rem; font-weight:800; text-transform:uppercase;
+  letter-spacing:.07em;
+}
+.dsp-ring-label.safety { color:#ea580c; }
+.dsp-ring-label.ops    { color:#6b7280; }
+.dsp-ring-canvas { position:relative; }
+.dsp-ring-canvas svg { display:block; }
+.dsp-ring-center {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:1.05rem; font-weight:800; font-family:Inter,system-ui,sans-serif;
+  color:var(--mh-ink); pointer-events:none; letter-spacing:-.01em;
+}
+.dsp-ring-legend {
+  display:flex; flex-direction:column; gap:2px; width:100%; max-width:96px;
+}
+.dsp-ring-legend-row {
+  display:flex; align-items:center; gap:4px;
+  font-size:0.61rem; color:var(--text-muted); white-space:nowrap; overflow:hidden;
+}
+.dsp-ring-legend-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.dsp-ring-legend-n { font-weight:700; color:var(--mh-ink); margin-left:auto; padding-left:4px; }
+
+/* ── Fullscreen mode ──────────────────────────────── */
+body.dsp-fullscreen .sidebar,
+body.dsp-fullscreen .topbar { display:none !important; }
+body.dsp-fullscreen .app {
+  grid-template-columns:1fr; grid-template-rows:1fr;
+  grid-template-areas:"content"; height:100vh;
+}
+body.dsp-fullscreen .content { grid-area:content; height:100vh; overflow:hidden; }
+
+@media (max-width:900px) {
+  .dsp-main { grid-template-columns:1fr; }
+  .dsp-vdivider { display:none; }
+  .dsp-map-wrap { height:300px; }
+  .dsp-bottom { grid-template-columns:1fr; height:auto; }
+  .dsp-hdivider { display:none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dsp content-fullbleed" id="dsp-root">
+
+  {# ── Critical banner ──────────────────────────────── #}
+  {% if critical_count > 0 %}
+  <div class="dsp-banner" id="dsp-critical-banner">
+    <span class="dsp-banner-pulse"></span>
+    <svg class="dsp-banner-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="dsp-banner-text">
+      {{ critical_count }} Critical Alert{{ critical_count|pluralize }} Open
+      {% if critical_alerts %}
+       &nbsp;·&nbsp; {{ critical_alerts.0.vehicle.registration }} — {{ critical_alerts.0.get_kind_display }}
+       &nbsp;·&nbsp; {{ critical_alerts.0.occurred_at|timesince }} ago
+      {% endif %}
+    </span>
+    <button class="dsp-banner-jump"
+            onclick="document.getElementById('section-critical')?.scrollIntoView({behavior:'smooth'})">
+      Jump <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </button>
+    <button class="dsp-banner-dismiss"
+            onclick="document.getElementById('dsp-critical-banner').remove()"
+            title="Dismiss">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  {% endif %}
+
+  {# ── Triage strip ──────────────────────────────────── #}
+  <div class="dsp-triage">
+    <span class="dsp-triage-brand">MhareReach · myTrack</span>
+
+    <button class="dsp-pill dsp-pill-all active" data-filter="all" onclick="setFilter(this,'all')">
+      All&nbsp;<span class="pill-count">{{ critical_count|add:safety_count|add:ops_count }}</span>
+    </button>
+    <button class="dsp-pill dsp-pill-critical" data-filter="critical" onclick="setFilter(this,'critical')">
+      <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+      Critical&nbsp;<span class="pill-count">{{ critical_count }}</span>
+    </button>
+    <button class="dsp-pill dsp-pill-safety" data-filter="safety" onclick="setFilter(this,'safety')">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Safety&nbsp;<span class="pill-count">{{ safety_count }}</span>
+    </button>
+    <button class="dsp-pill dsp-pill-ops" data-filter="operational" onclick="setFilter(this,'operational')">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Ops/Idle&nbsp;<span class="pill-count">{{ ops_count }}</span>
+    </button>
+    <span class="dsp-pill dsp-pill-resolved">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>&nbsp;Resolved today&nbsp;<span class="pill-count">{{ resolved_today }}</span>
+    </span>
+
+    <span class="dsp-triage-clock" id="dsp-clock">--:--:--</span>
+
+    {# Dark mode toggle #}
+    <button class="dsp-theme-btn" id="dsp-theme-btn" onclick="toggleTheme()" title="Toggle dark mode">
+      <svg id="dsp-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="dsp-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+
+    {# Fullscreen toggle #}
+    <button class="dsp-pill dsp-pill-all" id="dsp-fullscreen-btn"
+            onclick="toggleFullscreen()" title="Fullscreen (Esc to exit)"
+            style="padding:5px 10px">
+      <svg id="dsp-fs-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      <svg id="dsp-fs-collapse" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+    </button>
+  </div>
+
+  {# ── Main split ────────────────────────────────────── #}
+  <div class="dsp-main">
+
+    {# LEFT — Alert queue #}
+    <div class="dsp-queue" id="dsp-queue">
+
+      {# ── CRITICAL ── #}
+      {% if critical_alerts %}
+      <div class="dsp-section-hd critical" id="section-critical">
+        CRITICAL
+        <span class="hd-count">{{ critical_count }}</span>
+      </div>
+      {% for alert in critical_alerts %}
+      <div class="dsp-card critical" data-cat="critical" id="dcard-{{ alert.pk }}">
+        <div class="dsp-card-top">
+          <span class="dsp-card-reg">{{ alert.vehicle.registration }}</span>
+          <span class="dsp-card-kind">{{ alert.get_kind_display }}</span>
+          <span class="dsp-card-time {% if alert.occurred_at|timesince > '60 minutes' %}stale{% endif %}">
+            {{ alert.occurred_at|timesince }} ago
+          </span>
+        </div>
+        {% if alert.driver_name %}<div class="dsp-driver">{{ alert.driver_name }}</div>{% endif %}
+        <div class="dsp-card-ctx">
+          {% if alert.kind == 'speeding' %}{{ alert.value|floatformat:0 }} km/h&nbsp;—&nbsp;limit {{ alert.threshold|floatformat:0 }} km/h
+          {% elif alert.kind == 'idle' %}Idle {{ alert.value|floatformat:1 }} min (threshold {{ alert.threshold|floatformat:0 }} min)
+          {% else %}{{ alert.get_kind_display }}{% if alert.value %} · {{ alert.value|floatformat:1 }}{% endif %}{% endif %}
+        </div>
+        <div class="dsp-card-actions">
+          <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+                onsubmit="this.closest('.dsp-card').classList.add('resolving')"
+                style="display:flex;gap:5px;align-items:center">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'events-live-dashboard' %}">
+            <select name="note" class="dsp-note-sel">
+              <option>Driver notified</option>
+              <option>False positive</option>
+              <option>No action needed</option>
+              <option>Under investigation</option>
+            </select>
+            <button type="submit" class="dsp-btn-resolve">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Resolve
+            </button>
+          </form>
+          {% if alert.map_lon %}
+          <button class="dsp-btn-locate" onclick="locateEvent({{ alert.map_lon }},{{ alert.map_lat }},'{{ alert.vehicle.registration|escapejs }}','{{ alert.get_kind_display|escapejs }}','{{ alert.occurred_at|timesince }} ago')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Locate
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {# ── SAFETY ── #}
+      {% if safety_alerts %}
+      <div class="dsp-section-hd safety" id="section-safety">
+        SAFETY
+        <span class="hd-count">{{ safety_count }}</span>
+      </div>
+      {% for alert in safety_alerts %}
+      <div class="dsp-card safety" data-cat="safety" id="dcard-{{ alert.pk }}">
+        <div class="dsp-card-top">
+          <span class="dsp-card-reg">{{ alert.vehicle.registration }}</span>
+          <span class="dsp-card-kind">{{ alert.get_kind_display }}</span>
+          <span class="dsp-card-time">{{ alert.occurred_at|timesince }} ago</span>
+        </div>
+        {% if alert.driver_name %}<div class="dsp-driver">{{ alert.driver_name }}</div>{% endif %}
+        <div class="dsp-card-ctx">
+          {% if alert.kind == 'speeding' %}{{ alert.value|floatformat:0 }} km/h&nbsp;—&nbsp;limit {{ alert.threshold|floatformat:0 }} km/h
+          {% else %}{{ alert.get_kind_display }}{% if alert.value %} · {{ alert.value|floatformat:1 }}{% endif %}{% endif %}
+        </div>
+        <div class="dsp-card-actions">
+          <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+                onsubmit="this.closest('.dsp-card').classList.add('resolving')"
+                style="display:flex;gap:5px;align-items:center">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'events-live-dashboard' %}">
+            <select name="note" class="dsp-note-sel">
+              <option>Driver notified</option>
+              <option>False positive</option>
+              <option>No action needed</option>
+              <option>Under investigation</option>
+            </select>
+            <button type="submit" class="dsp-btn-resolve">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Resolve
+            </button>
+          </form>
+          {% if alert.map_lon %}
+          <button class="dsp-btn-locate" onclick="locateEvent({{ alert.map_lon }},{{ alert.map_lat }},'{{ alert.vehicle.registration|escapejs }}','{{ alert.get_kind_display|escapejs }}','{{ alert.occurred_at|timesince }} ago')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Locate
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {# ── OPERATIONAL (collapsed by default) ── #}
+      <div class="dsp-section-hd ops" id="section-ops" onclick="toggleOps(this)">
+        <span>OPS / IDLE</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span class="hd-count">{{ ops_count }}</span>
+          <span class="hd-chevron">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </span>
+      </div>
+      <div class="dsp-section-body collapsed" id="ops-body">
+        {% for alert in ops_alerts %}
+        <div class="dsp-card ops" data-cat="operational" id="dcard-{{ alert.pk }}">
+          <div class="dsp-card-top">
+            <span class="dsp-card-reg">{{ alert.vehicle.registration }}</span>
+            <span class="dsp-card-kind">{{ alert.get_kind_display }}</span>
+            <span class="dsp-card-time">{{ alert.occurred_at|timesince }} ago</span>
+          </div>
+          {% if alert.driver_name %}<div class="dsp-driver">{{ alert.driver_name }}</div>{% endif %}
+          <div class="dsp-card-ctx">
+            {% if alert.kind == 'idle' %}{{ alert.value|floatformat:1 }} min idle (threshold {{ alert.threshold|floatformat:0 }} min)
+            {% else %}{{ alert.get_kind_display }}{% if alert.value %} · {{ alert.value|floatformat:1 }}{% endif %}{% endif %}
+          </div>
+          <div class="dsp-card-actions">
+            <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+                  onsubmit="this.closest('.dsp-card').classList.add('resolving')"
+                  style="display:flex;gap:5px;align-items:center">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'events-live-dashboard' %}">
+              <select name="note" class="dsp-note-sel">
+                <option>Driver notified</option>
+                <option>False positive</option>
+                <option>No action needed</option>
+                <option>Under investigation</option>
+              </select>
+              <button type="submit" class="dsp-btn-resolve">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Resolve
+              </button>
+            </form>
+            {% if alert.map_lon %}
+            <button class="dsp-btn-locate" onclick="locateEvent({{ alert.map_lon }},{{ alert.map_lat }},'{{ alert.vehicle.registration|escapejs }}','{{ alert.get_kind_display|escapejs }}','{{ alert.occurred_at|timesince }} ago')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              Locate
+            </button>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="dsp-queue-empty">No operational alerts open.</div>
+        {% endfor %}
+      </div>
+
+      {% if not critical_alerts and not safety_alerts and not ops_alerts %}
+      <div class="dsp-queue-empty" style="padding:48px 18px">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" style="margin:0 auto 10px;display:block"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/></svg>
+        Fleet is clear — no open alerts.
+      </div>
+      {% endif %}
+
+    </div>{# end queue #}
+
+    {# Vertical drag handle #}
+    <div class="dsp-vdivider" id="dsp-vdivider"></div>
+
+    {# RIGHT — Live map #}
+    <div class="dsp-map-wrap">
+      <div id="dsp-map"></div>
+      <button class="dsp-map-fitbtn" id="dsp-fitbtn" onclick="fitAlerts()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.93"/></svg>
+        Fleet view
+      </button>
+      <div class="dsp-map-legend">
+        <span><span class="dsp-legend-dot" style="background:#dc2626"></span>Critical</span>
+        <span><span class="dsp-legend-dot" style="background:#ea580c"></span>Safety</span>
+        <span><span class="dsp-legend-dot" style="background:#d97706"></span>Ops</span>
+        <span><span class="dsp-legend-dot" style="background:#16a34a"></span>Clear</span>
+        <span><span class="dsp-legend-dot" style="background:#9ca3af"></span>Stale</span>
+      </div>
+    </div>
+
+  </div>{# end main #}
+
+  {# Horizontal drag handle #}
+  <div class="dsp-hdivider" id="dsp-hdivider"></div>
+
+  {# ── Bottom analytics strip ───────────────────────── #}
+  <div class="dsp-bottom">
+
+    {# Panel A — Top offenders #}
+    <div class="dsp-panel">
+      <div class="dsp-panel-title">Top offenders today</div>
+      {% for row in top_offenders %}
+      <div class="dsp-off-row">
+        <span class="dsp-off-reg">{{ row.vehicle__registration }}</span>
+        <div class="dsp-off-bar-wrap">
+          <div class="dsp-off-bar" style="width:{% widthratio row.total max_offender 100 %}%"></div>
+        </div>
+        <span class="dsp-off-n">{{ row.total }}</span>
+      </div>
+      {% empty %}
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">No open alerts</div>
+      {% endfor %}
+    </div>
+
+    {# Panel B — Shift timeline #}
+    <div class="dsp-panel">
+      <div class="dsp-panel-title">Alert activity — today's shift</div>
+      <div class="dsp-timeline-wrap">
+        <canvas id="chartTimeline"></canvas>
+      </div>
+    </div>
+
+    {# Panel C — KPI Radial Rings (replaces basic donuts) #}
+    <div class="dsp-panel">
+      <div class="dsp-panel-title">Category breakdown (today)</div>
+      <div class="dsp-ring-pair">
+        <div class="dsp-ring-item">
+          <div class="dsp-ring-label safety">Safety</div>
+          <div id="ring-safety"></div>
+        </div>
+        <div class="dsp-ring-item">
+          <div class="dsp-ring-label ops">Ops/Idle</div>
+          <div id="ring-ops"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+'use strict';
+
+// ── Data from Django ──────────────────────────────────────────────────────────
+let VEHICLES    = {{ vehicles_json|safe }};
+const HOURLY    = {{ hourly_json|safe }};
+const SAFETY_BD = {{ safety_bd_json|safe }};
+const OPS_BD    = {{ ops_bd_json|safe }};
+const NOW_HOUR  = {{ now_hour }};
+
+const COLORS = {
+  critical:    '#dc2626',
+  safety:      '#ea580c',
+  operational: '#d97706',
+  null:        '#16a34a',
+  stale:       '#9ca3af',
+};
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
+const DSP_ROOT = document.getElementById('dsp-root');
+const MOON_ICO = document.getElementById('dsp-icon-moon');
+const SUN_ICO  = document.getElementById('dsp-icon-sun');
+
+function applyTheme(dark) {
+  DSP_ROOT.classList.toggle('dark', dark);
+  MOON_ICO.style.display = dark ? 'none'  : '';
+  SUN_ICO.style.display  = dark ? ''      : 'none';
+  // Update Chart.js globals
+  const textColor   = dark ? '#8892a4' : '#6b7280';
+  const gridColor   = dark ? '#252a3a' : '#f3f4f6';
+  Chart.defaults.color       = textColor;
+  Chart.defaults.borderColor = gridColor;
+  if (window._chartTimeline) {
+    const ch = window._chartTimeline;
+    ch.options.scales.y.grid.color = gridColor;
+    ch.options.scales.x.ticks.color = textColor;
+    ch.options.scales.y.ticks.color = textColor;
+    ch.update('none');
+  }
+}
+
+function toggleTheme() {
+  const dark = !DSP_ROOT.classList.contains('dark');
+  localStorage.setItem('dsp-theme', dark ? 'dark' : 'light');
+  applyTheme(dark);
+}
+
+// Apply saved preference immediately
+(function() {
+  const saved = localStorage.getItem('dsp-theme');
+  if (saved === 'dark') applyTheme(true);
+})();
+
+// ── Fullscreen ────────────────────────────────────────────────────────────────
+function toggleFullscreen() {
+  const expand   = document.getElementById('dsp-fs-expand');
+  const collapse = document.getElementById('dsp-fs-collapse');
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+    document.body.classList.add('dsp-fullscreen');
+    expand.style.display   = 'none';
+    collapse.style.display = '';
+    if (window._dspMap) setTimeout(() => window._dspMap.resize(), 100);
+  } else {
+    document.exitFullscreen().catch(() => {});
+    document.body.classList.remove('dsp-fullscreen');
+    expand.style.display   = '';
+    collapse.style.display = 'none';
+    if (window._dspMap) setTimeout(() => window._dspMap.resize(), 100);
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    document.body.classList.remove('dsp-fullscreen');
+    document.getElementById('dsp-fs-expand').style.display   = '';
+    document.getElementById('dsp-fs-collapse').style.display = 'none';
+    if (window._dspMap) setTimeout(() => window._dspMap.resize(), 100);
+  }
+});
+
+// ── Panel resize ──────────────────────────────────────────────────────────────
+(function() {
+  const vHandle = document.getElementById('dsp-vdivider');
+  const main    = vHandle?.closest('.dsp-main');
+  if (vHandle && main) {
+    vHandle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      vHandle.classList.add('dragging');
+      const startX  = e.clientX;
+      const totalW  = main.getBoundingClientRect().width;
+      const startLeft = parseFloat(getComputedStyle(main).gridTemplateColumns.split(' ')[0]);
+      function onMove(ev) {
+        const newLeft  = Math.min(Math.max(startLeft + ev.clientX - startX, 160), totalW - 168);
+        main.style.gridTemplateColumns = `${newLeft}px 8px ${totalW - newLeft - 8}px`;
+      }
+      function onUp() {
+        vHandle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (window._dspMap) window._dspMap.resize();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  const hHandle = document.getElementById('dsp-hdivider');
+  const dsp     = hHandle?.closest('.dsp');
+  const bottom  = hHandle?.nextElementSibling;
+  if (hHandle && dsp && bottom) {
+    hHandle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      hHandle.classList.add('dragging');
+      const startY = e.clientY, startH = bottom.getBoundingClientRect().height;
+      function onMove(ev) {
+        bottom.style.height = Math.min(Math.max(startH + startY - ev.clientY, 80), 320) + 'px';
+        if (window._dspMap) window._dspMap.resize();
+      }
+      function onUp() {
+        hHandle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+})();
+
+// ── Live clock ────────────────────────────────────────────────────────────────
+function tickClock() {
+  const now = new Date(), pad = n => String(n).padStart(2,'0');
+  document.getElementById('dsp-clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+function relativeTime(isoStr) {
+  const diff = Math.floor((Date.now() - new Date(isoStr)) / 1000);
+  if (diff < 60) return `${diff} seconds`;
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''}`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins ? `${hrs} hour${hrs !== 1 ? 's' : ''}, ${remMins} minute${remMins !== 1 ? 's' : ''}` : `${hrs} hour${hrs !== 1 ? 's' : ''}`;
+}
+function refreshTimestamps() {
+  document.querySelectorAll('[data-ts]').forEach(el => {
+    el.textContent = relativeTime(el.dataset.ts) + ' ago';
+    el.classList.toggle('stale', (Date.now() - new Date(el.dataset.ts)) > 3600000);
+  });
+}
+refreshTimestamps();
+setInterval(refreshTimestamps, 30000);
+
+// ── Triage filter ─────────────────────────────────────────────────────────────
+function setFilter(btn, category) {
+  document.querySelectorAll('.dsp-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.dsp-card').forEach(card => {
+    card.style.display = (category === 'all' || card.dataset.cat === category) ? '' : 'none';
+  });
+  if (category === 'operational') {
+    document.getElementById('ops-body').classList.remove('collapsed');
+    document.getElementById('section-ops').classList.remove('collapsed');
+  }
+}
+
+// ── Ops section toggle ────────────────────────────────────────────────────────
+function toggleOps(hd) {
+  hd.classList.toggle('collapsed');
+  document.getElementById('ops-body').classList.toggle('collapsed');
+}
+
+// ── Map setup ─────────────────────────────────────────────────────────────────
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = '#6b7280';
+
+const map = new maplibregl.Map({
+  container: 'dsp-map',
+  style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '&copy; OpenStreetMap contributors' }}, layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+  center: [28.0473, -26.2041],
+  zoom: 10,
+});
+window._dspMap = map;
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+function makeCarEl(color, heading) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'cursor:pointer;filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))';
+  wrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="26"
+      viewBox="0 0 18 26" style="display:block;transform:rotate(${heading}deg)">
+    <rect x="2" y="4" width="14" height="18" rx="4" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+    <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
+    <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
+    <rect x="5" y="2" width="8" height="3" rx="2" fill="${color}" opacity=".7"/>
+    <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="15.5" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+  </svg>`;
+  return wrap;
+}
+
+// ── Follow-vehicle state ──────────────────────────────────────────────────────
+let _followId = null, _followReg = null;
+
+const PIN_SVG_INLINE = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+
+function setFollow(id, reg) {
+  _followId = id; _followReg = reg;
+  clearEventPin();
+  const btn = document.getElementById('dsp-fitbtn');
+  if (btn) {
+    btn.innerHTML = `${PIN_SVG_INLINE} ${reg} <span style="opacity:.55">· Stop</span>`;
+    btn.classList.add('event-active');
+    btn.title = 'Click to stop following';
+  }
+  const v = VEHICLES.find(x => x.id === id);
+  if (v) map.easeTo({ center: [v.lon, v.lat], zoom: 15, duration: 600 });
+}
+
+function clearFollow() {
+  _followId = null; _followReg = null;
+  const btn = document.getElementById('dsp-fitbtn');
+  if (btn) {
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.93"/></svg> Fleet view`;
+    btn.classList.remove('event-active');
+    btn.title = '';
+  }
+}
+
+// ── Marker factory ────────────────────────────────────────────────────────────
+function placeMarker(v) {
+  const color = v.stale ? COLORS.stale : (COLORS[v.worst] || COLORS[null]);
+  const el    = makeCarEl(color, v.heading);
+  const popup = new maplibregl.Popup({ offset: 14, closeButton: false }).setHTML(
+    `<strong style="font-size:12px;font-family:Inter,sans-serif">${v.reg}</strong>` +
+    `<div style="font-size:11px;color:#6b7280;margin-top:2px">${v.driver || 'No driver'} · ${v.speed} km/h</div>` +
+    `<button onclick="setFollow(${v.id},'${v.reg.replace(/'/g,"\\'")}');map.closePopup?.();"
+       style="margin-top:6px;font-size:0.7rem;font-weight:700;padding:3px 9px;border-radius:6px;
+              border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;cursor:pointer;
+              display:flex;align-items:center;gap:4px;width:100%">
+      ${PIN_SVG_INLINE} Follow vehicle
+    </button>`
+  );
+  return new maplibregl.Marker({ element: el, anchor: 'center' })
+    .setLngLat([v.lon, v.lat]).setPopup(popup).addTo(map);
+}
+
+const vMarkers = {};
+map.on('load', () => { VEHICLES.forEach(v => { vMarkers[v.id] = placeMarker(v); }); });
+
+// ── Locate event ──────────────────────────────────────────────────────────────
+let _eventMarker = null;
+
+function locateEvent(lon, lat, reg, kind, timeAgo) {
+  clearFollow();
+  if (_eventMarker) { _eventMarker.remove(); _eventMarker = null; }
+  const el = document.createElement('div');
+  el.className = 'dsp-event-pin';
+  const popup = new maplibregl.Popup({ offset: 14, closeButton: true })
+    .setHTML(`
+      <div class="dsp-popup-reg">${reg}</div>
+      <div class="dsp-popup-kind">${kind}</div>
+      <div class="dsp-popup-time">${timeAgo}</div>
+    `);
+  _eventMarker = new maplibregl.Marker({ element: el })
+    .setLngLat([lon, lat]).setPopup(popup).addTo(map);
+  _eventMarker.togglePopup();
+  map.flyTo({ center: [lon, lat], zoom: 15, duration: 700 });
+  const fitBtn = document.getElementById('dsp-fitbtn');
+  if (fitBtn) fitBtn.classList.add('event-active');
+}
+
+function clearEventPin() {
+  if (_eventMarker) { _eventMarker.remove(); _eventMarker = null; }
+  if (!_followId) {
+    const fitBtn = document.getElementById('dsp-fitbtn');
+    if (fitBtn) fitBtn.classList.remove('event-active');
+  }
+}
+
+function fitAlerts() {
+  clearFollow(); clearEventPin();
+  const active = VEHICLES.filter(v => v.worst);
+  if (!active.length) { map.flyTo({ center: [28.0473, -26.2041], zoom: 9 }); return; }
+  if (active.length === 1) { map.flyTo({ center: [active[0].lon, active[0].lat], zoom: 14, duration: 700 }); return; }
+  const lons = active.map(v => v.lon), lats = active.map(v => v.lat);
+  map.fitBounds(
+    [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+    { padding: 80, maxZoom: 14 }
+  );
+}
+
+map.on('load', () => {
+  const active = VEHICLES.filter(v => v.worst);
+  if (active.length >= 1) setTimeout(fitAlerts, 600);
+});
+
+// ── Shift timeline (stacked bar by hour) ──────────────────────────────────────
+(function() {
+  const isDark = DSP_ROOT.classList.contains('dark');
+  const textC  = isDark ? '#8892a4' : '#6b7280';
+  const gridC  = isDark ? '#252a3a' : '#f3f4f6';
+  Chart.defaults.color       = textC;
+  Chart.defaults.borderColor = gridC;
+
+  const labels = HOURLY.map(h => h.h < 10 ? `0${h.h}` : `${h.h}`);
+  window._chartTimeline = new Chart(document.getElementById('chartTimeline'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Critical',    data:HOURLY.map(h=>h.c), backgroundColor:'#dc2626', stack:'a', borderRadius:2 },
+        { label:'Safety',      data:HOURLY.map(h=>h.s), backgroundColor:'#ea580c', stack:'a', borderRadius:0 },
+        { label:'Operational', data:HOURLY.map(h=>h.o), backgroundColor:'#d1d5db', stack:'a', borderRadius:0 },
+      ],
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ title: ctx => `${ctx[0].label}:00` } } },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, border:{ display:false },
+            ticks:{ maxTicksLimit:12, font:{ size:9 }, color:textC } },
+        y:{ stacked:true, beginAtZero:true, ticks:{ precision:0, font:{ size:9 }, color:textC },
+            grid:{ color:gridC }, border:{ display:false } },
+      },
+    },
+    plugins:[{
+      id:'nowLine',
+      afterDraw(chart) {
+        const { ctx, scales:{ x } } = chart;
+        const nowX = x.getPixelForValue(NOW_HOUR);
+        if (!nowX) return;
+        ctx.save();
+        ctx.strokeStyle='#7c3aed'; ctx.lineWidth=2; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(nowX, chart.chartArea.top);
+        ctx.lineTo(nowX, chart.chartArea.bottom); ctx.stroke();
+        ctx.fillStyle='#7c3aed'; ctx.font='bold 8px Inter,sans-serif';
+        ctx.fillText('NOW', nowX+3, chart.chartArea.top+9);
+        ctx.restore();
+      }
+    }],
+  });
+})();
+
+// ── KPI Radial Rings ──────────────────────────────────────────────────────────
+//
+// Pure SVG rings with a bold center count and a compact legend.
+// Uses stroke-dasharray/dashoffset to paint each arc segment.
+// gap = 2px of circumference between segments for visual separation.
+//
+function makeRadialRing(containerId, data, colors) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const R  = 29, CX = 37, CY = 37, SW = 9, W = 74, H = 74;
+  const C  = 2 * Math.PI * R;         // full circumference ≈ 182
+  const SEP = data.length > 1 ? 2 : 0; // gap between segments
+  const total = data.reduce((s, d) => s + d.n, 0);
+
+  // Compute arc lengths
+  let cum = 0;
+  const segs = data.map((d, i) => {
+    const arcLen = total > 0 ? Math.max(0, (d.n / total) * C - SEP) : 0;
+    const seg = { ...d, arcLen, dashOffset: C - cum, color: colors[i % colors.length] };
+    cum += arcLen + SEP;
+    return seg;
+  });
+
+  // Track ring (background)
+  const isDark     = DSP_ROOT.classList.contains('dark');
+  const trackColor = isDark ? '#252a3a' : '#f0f2f5';
+
+  // Arc elements
+  const arcs = total === 0
+    ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none"
+               stroke="${trackColor}" stroke-width="${SW}"/>`
+    : segs.map(s =>
+        `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none"
+                 stroke="${s.color}" stroke-width="${SW}"
+                 stroke-dasharray="${s.arcLen.toFixed(2)} ${(C - s.arcLen).toFixed(2)}"
+                 stroke-dashoffset="${s.dashOffset.toFixed(2)}"
+                 transform="rotate(-90 ${CX} ${CY})"
+                 stroke-linecap="butt"/>`
+      ).join('');
+
+  // Legend rows (max 5 items)
+  const legendRows = data.slice(0, 5).map((d, i) =>
+    `<div class="dsp-ring-legend-row">
+      <span class="dsp-ring-legend-dot" style="background:${colors[i % colors.length]}"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis">${d.label}</span>
+      <span class="dsp-ring-legend-n">${d.n}</span>
+    </div>`
+  ).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="dsp-ring-canvas">
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+          <circle cx="${CX}" cy="${CY}" r="${R}" fill="none"
+                  stroke="${trackColor}" stroke-width="${SW}"/>
+          ${arcs}
+        </svg>
+        <div class="dsp-ring-center">${total}</div>
+      </div>
+      <div class="dsp-ring-legend">
+        ${legendRows || `<div style="font-size:.7rem;color:var(--text-muted)">No data</div>`}
+      </div>
+    </div>
+  `;
+}
+
+const SAFETY_COLORS = ['#dc2626','#ea580c','#d97706','#f59e0b','#fbbf24','#fde68a'];
+const OPS_COLORS    = ['#6b7280','#9ca3af','#c4b5fd','#d1d5db','#e5e7eb'];
+makeRadialRing('ring-safety', SAFETY_BD, SAFETY_COLORS);
+makeRadialRing('ring-ops',    OPS_BD,    OPS_COLORS);
+
+// ── Live queue + vehicle refresh ──────────────────────────────────────────────
+const QUEUE_URL = '{% url "dispatcher-queue-fragment" %}';
+let _queueTimer = null;
+
+function updateVehicleMarkers(vehicles) {
+  Object.values(vMarkers).forEach(m => m.remove());
+  for (const k in vMarkers) delete vMarkers[k];
+  vehicles.forEach(v => { vMarkers[v.id] = placeMarker(v); });
+  if (_followId) {
+    const followed = vehicles.find(v => v.id === _followId);
+    if (followed) map.easeTo({ center: [followed.lon, followed.lat], duration: 500 });
+    else clearFollow();
+  }
+}
+
+function refreshQueue() {
+  fetch(QUEUE_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      const queue = document.getElementById('dsp-queue');
+      if (queue) queue.innerHTML = data.queue_html;
+
+      const activeFilter = document.querySelector('.dsp-pill.active')?.dataset?.filter || 'all';
+      if (activeFilter !== 'all') {
+        document.querySelectorAll('.dsp-card').forEach(card => {
+          card.style.display = card.dataset.cat === activeFilter ? '' : 'none';
+        });
+      }
+
+      const setCount = (sel, n) => {
+        const el = document.querySelector(sel + ' .pill-count');
+        if (el) el.textContent = n;
+      };
+      setCount('.dsp-pill-critical', data.critical_count);
+      setCount('.dsp-pill-safety',   data.safety_count);
+      setCount('.dsp-pill-ops',      data.ops_count);
+      const totalEl = document.querySelector('.dsp-pill-all:first-of-type .pill-count');
+      if (totalEl) totalEl.textContent = data.critical_count + data.safety_count + data.ops_count;
+      const resolvedEl = document.querySelector('.dsp-pill-resolved .pill-count');
+      if (resolvedEl) resolvedEl.textContent = data.resolved_today;
+
+      const vehicles = JSON.parse(data.vehicles);
+      VEHICLES = vehicles;
+      if (map.loaded()) updateVehicleMarkers(vehicles);
+      else map.once('load', () => updateVehicleMarkers(vehicles));
+    })
+    .catch(err => console.warn('[dispatcher] queue refresh failed:', err))
+    .finally(() => { _queueTimer = setTimeout(refreshQueue, 10000); });
+}
+
+setTimeout(refreshQueue, 3000);
+</script>
+{% endblock %}

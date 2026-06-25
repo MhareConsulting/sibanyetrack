@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}{{ vehicle.registration }} — Fuel — myTrack{% endblock %}
+{% block page_title %}{{ vehicle.registration }} — Fuel History{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'fuel-calibration-editor' vehicle.pk %}" class="btn btn-ghost btn-sm">Probe Calibration</a>
+<a href="{% url 'fuel-event-list' %}?vehicle={{ vehicle.pk }}" class="btn btn-ghost btn-sm">Events only</a>
+<a href="{% url 'fuel-vehicle-list' %}" class="btn btn-ghost btn-sm">← Fleet Overview</a>
+{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <!-- Summary stat cards -->
+  <div class="stat-grid" style="margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-label">Current Level</div>
+      <div class="stat-value">{% if latest %}{{ latest.fuel_level_litres|floatformat:1 }}{% else %}—{% endif %} <span style="font-size:1rem;font-weight:600">L</span></div>
+      {% if latest and vehicle.fuel_tank_capacity_litres %}
+        {% widthratio latest.fuel_level_litres vehicle.fuel_tank_capacity_litres 100 as pct %}
+        <div class="stat-sublabel">{{ pct }}% of {{ vehicle.fuel_tank_capacity_litres|floatformat:0 }} L tank</div>
+      {% endif %}
+      {% if latest %}<div class="stat-sublabel">Source: {{ latest.get_source_display }}</div>{% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Consumed ({{ days }}d)</div>
+      {% if ecu_burned is not None %}
+        <div class="stat-value">{{ ecu_burned }} <span style="font-size:1rem;font-weight:600">L</span></div>
+        <div class="stat-sublabel">Burned (ECU counter)</div>
+      {% else %}
+        <div class="stat-value">{{ total_consumed }} <span style="font-size:1rem;font-weight:600">L</span></div>
+        <div class="stat-sublabel">Estimated from level readings</div>
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Readings ({{ days }}d)</div>
+      <div class="stat-value">{{ reading_count }}</div>
+      <div class="stat-sublabel">Probe data points</div>
+    </div>
+  </div>
+
+  <!-- Date range selector -->
+  <div style="display:flex;gap:8px;margin-bottom:20px">
+    <a href="?days=7"  class="btn btn-sm {% if days == 7  %}btn-primary{% else %}btn-ghost{% endif %}">7d</a>
+    <a href="?days=14" class="btn btn-sm {% if days == 14 %}btn-primary{% else %}btn-ghost{% endif %}">14d</a>
+    <a href="?days=30" class="btn btn-sm {% if days == 30 %}btn-primary{% else %}btn-ghost{% endif %}">30d</a>
+  </div>
+
+  <!-- Fuel level chart -->
+  {% if reading_count %}
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Fuel Level — Last {{ days }} Days</div>
+        <div class="card-subtitle">{{ reading_count }} readings from probe</div>
+      </div>
+    </div>
+    <canvas id="fuelChart" height="100"></canvas>
+  </div>
+  {% else %}
+  <div class="card" style="margin-bottom:24px;text-align:center;padding:48px;color:var(--text-muted)">
+    No fuel readings in the last {{ days }} days. Ensure the fuel probe is connected and transmitting.
+  </div>
+  {% endif %}
+
+  <!-- Events table -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="card-header" style="padding:16px 20px">
+      <div class="card-title">Fuel Events</div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Before</th>
+          <th>After</th>
+          <th>Change</th>
+          <th>Driver</th>
+          <th>Time</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in events %}
+        <tr>
+          <td>
+            {% if event.kind == 'refuel' %}
+              <span class="badge badge-ok">Refuel</span>
+            {% elif event.kind == 'theft' %}
+              <span class="badge badge-expired">Theft</span>
+            {% else %}
+              <span class="badge badge-warning">Drain</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted)">{{ event.level_before|floatformat:1 }} L</td>
+          <td style="color:var(--text-muted)">{{ event.level_after|floatformat:1 }} L</td>
+          <td>
+            {% if event.delta_litres > 0 %}
+              <span style="color:var(--success);font-weight:600">+{{ event.delta_litres|floatformat:1 }} L</span>
+            {% else %}
+              <span style="color:var(--danger);font-weight:600">{{ event.delta_litres|floatformat:1 }} L</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted)">{{ event.driver_name|default:"—" }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ event.occurred_at|date:"d M Y H:i" }}</td>
+          <td>
+            {% if event.acknowledged %}<span class="badge badge-ok">Reviewed</span>
+            {% elif event.kind == 'refuel' %}<span class="badge badge-unknown">—</span>
+            {% else %}<span class="badge badge-expired">Needs review</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No events in this period.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+{% if reading_count %}
+<script>
+const labels = {{ chart_labels|safe }};
+const data   = {{ chart_data|safe }};
+
+// Format timestamps for display
+const fmt = labels.map(ts => {
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-ZA', {day:'2-digit', month:'short'}) + ' ' +
+         d.toLocaleTimeString('en-ZA', {hour:'2-digit', minute:'2-digit'});
+});
+
+new Chart(document.getElementById('fuelChart'), {
+  type: 'line',
+  data: {
+    labels: fmt,
+    datasets: [{
+      label: 'Fuel level (L)',
+      data: data,
+      borderColor: '#00C8FF',
+      backgroundColor: 'rgba(0,200,255,0.08)',
+      borderWidth: 2,
+      pointRadius: data.length > 200 ? 0 : 2,
+      fill: true,
+      tension: 0.3,
+    }]
+  },
+  options: {
+    responsive: true,
+    interaction: { intersect: false, mode: 'index' },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+      y: { ticks: { font: { size: 11 } }, title: { display: true, text: 'Litres' } }
+    }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "drivers/portal_base.html" %}
+{% block title %}Dashboard — myTrack Driver{% endblock %}
+
+{% block content %}
+
+<div class="kpi-card" style="display:flex;align-items:center;gap:20px">
+  <div>
+    {% if latest_score %}
+      <div class="score-big">{{ latest_score.score }}</div>
+      <div style="font-size:0.78rem;color:#64748b;margin-top:4px">Safety score</div>
+    {% else %}
+      <div class="score-big" style="color:#cbd5e1">—</div>
+      <div style="font-size:0.78rem;color:#64748b">No score yet</div>
+    {% endif %}
+  </div>
+  <div style="text-align:center">
+    <div class="grade-badge grade-{{ grade }}">{{ grade }}</div>
+    <div style="font-size:0.72rem;color:#64748b;margin-top:4px">Grade</div>
+  </div>
+  {% if score_data %}
+  <div style="flex:1">
+    <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:6px">Last 7 days</div>
+    <div class="sparkline-bar" id="sparkline"></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if today_trips %}
+<div class="kpi-card" style="padding:16px 20px">
+  <h3>Today's trips</h3>
+  {% for trip in today_trips %}
+  <div class="trip-row">
+    <div class="dist">{% if trip.distance_km %}{{ trip.distance_km|floatformat:1 }} km{% else %}—{% endif %}</div>
+    <div>
+      <div class="meta">{{ trip.started_at|date:"H:i" }}
+        {% if trip.ended_at %} → {{ trip.ended_at|date:"H:i" }}{% else %} (active){% endif %}
+      </div>
+      {% if trip.max_speed_kmh %}
+      <div class="meta">Top speed: {{ trip.max_speed_kmh|floatformat:0 }} km/h</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="kpi-card" style="text-align:center;color:#94a3b8;padding:30px">No trips recorded today.</div>
+{% endif %}
+
+{% if score_data %}
+<script>
+(function(){
+  const data = {{ score_data|safe }};
+  const container = document.getElementById('sparkline');
+  if (!container || !data.length) return;
+  const max = Math.max(...data.map(d => d.score), 1);
+  data.forEach(function(d) {
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    const h = Math.max(4, Math.round((d.score / max) * 50));
+    col.style.height = h + 'px';
+    col.style.background = d.score >= 80 ? '#22c55e' : d.score >= 60 ? '#eab308' : '#ef4444';
+    col.title = d.date + ': ' + d.score;
+    container.appendChild(col);
+  });
+})();
+</script>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% block title %}Home — myTrack{% endblock %}
+{% block header_title %}Home{% endblock %}
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="m-chips" id="home-chips"></div>
+<div class="m-map-wrap">
+  <div id="home-map" class="m-map"></div>
+  <div class="m-map-fabs">
+    <button type="button" class="m-fab" data-zoom="in">+</button>
+    <button type="button" class="m-fab" data-zoom="out">−</button>
+  </div>
+</div>
+<div class="m-panel">
+  <div class="m-panel-tabs">
+    <button type="button" class="m-panel-tab active" data-tab="shortcuts">Shortcuts</button>
+    <button type="button" class="m-panel-tab" data-tab="insights">Insights</button>
+    <button type="button" class="m-panel-tab" data-tab="latest">Latest trips</button>
+  </div>
+  <div class="m-panel-body" id="panel-shortcuts">
+    <div class="m-shortcuts">
+      <a href="#" class="m-shortcut peri" id="sc-share-asset"><span class="m-shortcut-label">Share asset</span><span class="m-shortcut-arrow">›</span></a>
+      <a href="#" class="m-shortcut cyan" id="sc-replay"><span class="m-shortcut-label">Latest trip replay</span><span class="m-shortcut-arrow">›</span></a>
+      <a href="#" class="m-shortcut peri" id="sc-share-loc"><span class="m-shortcut-label">Share location</span><span class="m-shortcut-arrow">›</span></a>
+    </div>
+  </div>
+  <div class="m-panel-body" id="panel-insights" hidden>
+    <div class="m-insights-grid" id="insights-grid">
+      <div class="m-insight-card"><div class="m-insight-val" id="ins-trips">—</div><div class="m-insight-lbl">Trips today</div></div>
+      <div class="m-insight-card"><div class="m-insight-val" id="ins-alerts">—</div><div class="m-insight-lbl">Open alerts</div></div>
+      <div class="m-insight-card"><div class="m-insight-val" id="ins-offline">—</div><div class="m-insight-lbl">Offline</div></div>
+    </div>
+  </div>
+  <div class="m-panel-body" id="panel-latest" hidden>
+    <div id="latest-trips-list"></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script src="{% static 'mobile/live.js' %}"></script>
+<script src="{% static 'mobile/map.js' %}"></script>
+<script src="{% static 'mobile/share.js' %}"></script>
+<script>
+(function() {
+  let vehicles = [];
+  const chipsEl = document.getElementById("home-chips");
+
+  function renderChips() {
+    chipsEl.innerHTML = vehicles.map(v => `
+      <div class="m-chip${MyTrackMobile.selectedVehicleId === v.id ? ' selected' : ''}" data-id="${v.id}">
+        <span class="m-chip-icon">${MyTrackMobile.vehicleIconHtml()}</span>
+        ${v.registration || v.reg || "Vehicle"}
+      </div>`).join("");
+    chipsEl.querySelectorAll(".m-chip").forEach(el => {
+      el.addEventListener("click", () => {
+        MyTrackMobile.selectedVehicleId = parseInt(el.dataset.id, 10);
+        renderChips();
+        MyTrackMap.updateVehicles(vehicles, MyTrackMobile.selectedVehicleId);
+      });
+    });
+  }
+
+  document.querySelectorAll(".m-panel-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".m-panel-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      ["shortcuts","insights","latest"].forEach(t => {
+        const panel = document.getElementById("panel-" + t);
+        if (btn.dataset.tab === t) panel.removeAttribute("hidden");
+        else panel.setAttribute("hidden", "");
+      });
+      if (btn.dataset.tab === "insights") loadInsights();
+      if (btn.dataset.tab === "latest") loadLatestTrips();
+    });
+  });
+
+  async function loadInsights() {
+    try {
+      const d = await MyTrackMobile.api("/insights/");
+      document.getElementById("ins-trips").textContent = d.insights.trips_today;
+      document.getElementById("ins-alerts").textContent = d.insights.open_alerts;
+      document.getElementById("ins-offline").textContent = d.insights.vehicles_offline;
+    } catch (_) {}
+  }
+
+  async function loadLatestTrips() {
+    const el = document.getElementById("latest-trips-list");
+    try {
+      const d = await MyTrackMobile.api("/trips/?page=1");
+      if (!d.trips.length) { el.innerHTML = '<p class="m-empty">No recent trips</p>'; return; }
+      el.innerHTML = d.trips.slice(0, 5).map(t => `
+        <a href="/app/trips/${t.id}/replay/" class="m-trip-mini" style="text-decoration:none;color:inherit">
+          <strong>${t.vehicle_reg}</strong><br>
+          <span style="font-size:0.75rem;color:var(--muted)">${t.start_label} → ${t.end_label || '…'}</span>
+        </a>`).join("");
+    } catch (_) { el.innerHTML = '<p class="m-empty">Could not load trips</p>'; }
+  }
+
+  document.getElementById("sc-share-asset").addEventListener("click", async e => {
+    e.preventDefault();
+    const id = MyTrackMobile.selectedVehicleId || vehicles[0]?.id;
+    if (!id) return MyTrackMobile.toast("Select a vehicle first");
+    await MyTrackShare.shareAsset(id);
+  });
+  document.getElementById("sc-share-loc").addEventListener("click", async e => {
+    e.preventDefault();
+    const id = MyTrackMobile.selectedVehicleId || vehicles[0]?.id;
+    if (!id) return MyTrackMobile.toast("Select a vehicle first");
+    await MyTrackShare.shareLocation(id);
+  });
+  document.getElementById("sc-replay").addEventListener("click", async e => {
+    e.preventDefault();
+    const id = MyTrackMobile.selectedVehicleId || vehicles[0]?.id;
+    if (!id) return MyTrackMobile.toast("Select a vehicle first");
+    const d = await MyTrackMobile.api(`/vehicles/${id}/last-trip/`);
+    if (d.trip) location.href = `/app/trips/${d.trip.id}/replay/`;
+    else MyTrackMobile.toast("No completed trips yet");
+  });
+  document.querySelectorAll("[data-zoom]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const z = MyTrackMap.map.getZoom();
+      MyTrackMap.map.zoomTo(btn.dataset.zoom === "in" ? z + 1 : z - 1);
+    });
+  });
+
+  MyTrackMap.init("home-map");
+  MyTrackLive.start();
+  MyTrackLive.onUpdate(v => { vehicles = v; renderChips(); MyTrackMap.updateVehicles(v, MyTrackMobile.selectedVehicleId); });
+})();
+</script>
+{% endblock %}

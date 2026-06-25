@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Deliveries{% endblock %}
+{% block page_title %}Deliveries{% endblock %}
+
+{% block topbar_actions %}{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div class="alert" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;color:#92400e;font-size:0.9rem;">
+    <strong>Note:</strong> New tracking links should now be created in <strong>MyRoutes</strong> from the stop detail on the live ops page. Links created here will continue to work until they expire.
+  </div>
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Tracking</div>
+      <h1>Deliveries</h1>
+      <p>Customer tracking links — create, monitor, and mark deliveries complete</p>
+    </div>
+  </div>
+
+  {% if shares %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Customer</th>
+          <th>Note</th>
+          <th>Destination</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Expires</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for share in shares %}
+        <tr>
+          <td style="font-weight:600;">{{ share.vehicle.registration }}</td>
+          <td>
+            <div>{{ share.customer_email }}</div>
+            {% if share.customer_name %}<div style="font-size:0.78rem;color:var(--text-muted);">{{ share.customer_name }}</div>{% endif %}
+          </td>
+          <td style="color:var(--text-muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ share.note|default:"—" }}
+          </td>
+          <td style="color:var(--text-muted);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ share.destination_address|default:"—" }}
+          </td>
+          <td>
+            {% if share.status == "delivered" %}
+              <span class="badge badge-ok">Delivered</span>
+            {% elif share.status == "active" %}
+              <span class="badge" style="background:#dbeafe;color:#1e40af;">Active</span>
+            {% else %}
+              <span class="badge badge-unknown">Expired</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:0.82rem;">{{ share.created_at|date:"d M H:i" }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem;">{{ share.expires_at|date:"d M H:i" }}</td>
+          <td>
+            <div style="display:flex;gap:6px;justify-content:flex-end;">
+              <a href="{{ share.get_public_url }}" target="_blank" class="btn btn-ghost btn-sm">Track ↗</a>
+              {% if share.status == "active" %}
+              <form method="post" action="{% url 'delivery-share-complete' share.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:#10b981;border-color:#10b981;">✓ Complete</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:56px;">
+    <div style="font-size:2rem;margin-bottom:12px;">📦</div>
+    <p style="color:var(--text-muted);margin-bottom:16px;">No delivery links yet. Create one to send a customer a live tracking link.</p>
+    <a href="{% url 'delivery-share-create' %}" class="btn btn-primary">Create your first delivery link</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

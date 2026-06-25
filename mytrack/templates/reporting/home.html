@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Reports & Analytics — mTrack{% endblock %}
+{% block page_title %}Reports & Analytics{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+<style>
+  /* ── Hub layout ───────────────────────────────────── */
+  .rh-header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; margin-bottom:28px; flex-wrap:wrap;
+  }
+  .rh-brand {
+    font-size:.65rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--mh-purple); margin-bottom:4px;
+  }
+  .rh-header h1 { font-size:1.45rem; font-weight:800; color:var(--mh-ink); margin:0 0 4px; }
+  .rh-header p  { font-size:.82rem; color:var(--text-muted); margin:0; }
+  .rh-header-actions { display:flex; gap:8px; align-items:center; flex-shrink:0; padding-top:6px; }
+
+  /* ── Sections ─────────────────────────────────────── */
+  .rh-section { margin-bottom:28px; }
+  .rh-section-hd {
+    display:flex; align-items:center; gap:8px; margin-bottom:12px;
+  }
+  .rh-section-label {
+    font-size:.7rem; font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--text-muted);
+  }
+  .rh-badge {
+    font-size:.62rem; font-weight:700; background:var(--mh-peri-soft);
+    color:var(--text-muted); padding:1px 7px; border-radius:10px;
+  }
+
+  /* ── Report cards ─────────────────────────────────── */
+  .rh-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+  .rh-card {
+    background:#fff; border:1px solid var(--border-soft); border-radius:12px;
+    box-shadow:var(--shadow-sm); overflow:hidden; display:flex; flex-direction:column;
+    border-left:3px solid var(--rh-accent,var(--border));
+    transition:box-shadow .2s, transform .15s;
+    cursor:default;
+  }
+  .rh-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  .rh-card-inner { padding:14px 16px; display:flex; gap:12px; flex:1; }
+  .rh-card-icon {
+    width:40px; height:40px; border-radius:10px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.15rem; background:var(--rh-icon-bg,var(--mh-peri-soft));
+  }
+  .rh-card-meta { flex:1; min-width:0; }
+  .rh-tag {
+    font-size:.58rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--rh-accent,var(--text-soft)); margin-bottom:3px;
+  }
+  .rh-card-name { font-size:.95rem; font-weight:700; color:var(--mh-ink); line-height:1.2; }
+  .rh-card-desc {
+    font-size:.74rem; color:var(--text-muted); line-height:1.45; margin-top:5px;
+  }
+  .rh-card-foot {
+    padding:8px 16px; border-top:1px solid var(--border-soft);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .rh-last-run { font-size:.63rem; color:var(--text-soft); }
+
+  /* Saved template card variant */
+  .rh-card--saved .rh-card-name { font-size:.88rem; }
+  .rh-card--saved .rh-card-desc { font-size:.72rem; }
+  .rh-saved-actions { display:flex; gap:6px; }
+
+  /* ── Custom Builder CTA banner ────────────────────── */
+  .rh-cta {
+    border-radius:12px; padding:20px 24px;
+    background:var(--mh-gradient-soft);
+    border:1px solid rgba(138,43,226,.12);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap;
+  }
+  .rh-cta-text { flex:1; }
+  .rh-cta-text h3 {
+    font-size:.95rem; font-weight:800; color:var(--mh-ink);
+    margin:0 0 3px;
+  }
+  .rh-cta-text p { font-size:.78rem; color:var(--text-muted); margin:0; }
+
+  /* ── Quick-filter drawer ──────────────────────────── */
+  .rh-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.35);
+    z-index:200; display:none; backdrop-filter:blur(2px);
+  }
+  .rh-overlay.open { display:block; }
+  .rh-drawer {
+    position:fixed; top:0; right:0; bottom:0; width:340px; background:#fff;
+    z-index:201; box-shadow:-4px 0 32px rgba(0,0,0,.14);
+    transform:translateX(100%); transition:transform .28s ease;
+    display:flex; flex-direction:column;
+  }
+  .rh-drawer.open { transform:translateX(0); }
+  .rh-drawer-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--border-soft);
+    background:var(--mh-peri-soft);
+  }
+  .rh-drawer-head-left { display:flex; flex-direction:column; gap:2px; }
+  .rh-drawer-domain-label {
+    font-size:.6rem; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--text-soft);
+  }
+  .rh-drawer-title { font-size:.98rem; font-weight:800; color:var(--mh-ink); }
+  .rh-drawer-close {
+    background:none; border:none; cursor:pointer; color:var(--text-muted);
+    font-size:1.1rem; padding:4px; border-radius:6px; line-height:1;
+    transition:background .2s;
+  }
+  .rh-drawer-close:hover { background:var(--border-soft); color:var(--mh-ink); }
+  .rh-drawer-body {
+    flex:1; padding:20px; overflow-y:auto;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .rh-drawer-hint {
+    font-size:.74rem; color:var(--text-muted); line-height:1.5;
+    padding:10px 12px; background:var(--mh-peri-soft);
+    border-radius:8px; border-left:3px solid var(--mh-purple);
+  }
+  .rh-drawer-foot {
+    padding:14px 20px; border-top:1px solid var(--border-soft);
+    display:flex; gap:8px; justify-content:flex-end;
+  }
+</style>
+
+  <!-- ── Page Header ─────────────────────────────────── -->
+  <div class="rh-header">
+    <div>
+      <div class="rh-brand">MhareReach · mTrack</div>
+      <h1>Reporting &amp; Analytics</h1>
+      <p>Generate, export, and schedule fleet intelligence reports across your organisation.</p>
+    </div>
+    <div class="rh-header-actions">
+      <a href="{% url 'reporting-schedules' %}" class="btn btn-ghost btn-sm">⏰ Schedules</a>
+      <a href="{% url 'reporting-custom-builder' %}" class="btn btn-primary">Custom Builder →</a>
+    </div>
+  </div>
+
+  <!-- ── Saved Templates ─────────────────────────────── -->
+  {% if saved_templates %}
+  <div class="rh-section">
+    <div class="rh-section-hd">
+      <span class="rh-section-label">★ Saved Templates</span>
+      <span class="rh-badge">{{ saved_templates|length }}</span>
+    </div>
+    <div class="rh-grid">
+      {% for tpl in saved_templates %}
+      <div class="rh-card rh-card--saved" style="--rh-accent:var(--mh-purple);--rh-icon-bg:rgba(138,43,226,.08)">
+        <div class="rh-card-inner">
+          <div class="rh-card-icon">📋</div>
+          <div class="rh-card-meta">
+            <div class="rh-tag">{{ tpl.get_domain_display }}</div>
+            <div class="rh-card-name">{{ tpl.name }}</div>
+            <div class="rh-card-desc">Custom saved template · {{ tpl.created_at|date:"d M Y" }}</div>
+          </div>
+        </div>
+        <div class="rh-card-foot">
+          <span class="rh-last-run">Saved {{ tpl.created_at|date:"d M" }}</span>
+          <div class="rh-saved-actions">
+            <a href="{% url 'reporting-template-load' tpl.pk %}" class="btn btn-primary btn-sm">Run</a>
+            <form method="post" action="{% url 'reporting-template-delete' tpl.pk %}" style="margin:0"
+                  onsubmit="return confirm('Delete \'{{ tpl.name }}\'?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444">✕</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Standard Reports ────────────────────────────── -->
+  <div class="rh-section">
+    <div class="rh-section-hd">
+      <span class="rh-section-label">Standard Reports</span>
+      <span class="rh-badge">4</span>
+    </div>
+    <div class="rh-grid">
+
+      <!-- Speed -->
+      <div class="rh-card" style="--rh-accent:#ef4444;--rh-icon-bg:rgba(239,68,68,.09)">
+        <div class="rh-card-inner">
+          <div class="rh-card-icon">⚡</div>
+          <div class="rh-card-meta">
+            <div class="rh-tag" style="color:#ef4444">Fleet Safety</div>
+            <div class="rh-card-name">Speed Report</div>
+            <div class="rh-card-desc">Identify speeding violations and driver risk. Analyse max speeds against posted road limits per trip.</div>
+          </div>
+        </div>
+        <div class="rh-card-foot">
+          <span class="rh-last-run">Trips · Distance · Max Speed</span>
+          <button class="btn btn-primary btn-sm" onclick="rhOpen('speed','Speed Report')">Open →</button>
+        </div>
+      </div>
+
+      <!-- Fuel -->
+      <div class="rh-card" style="--rh-accent:#f59e0b;--rh-icon-bg:rgba(245,158,11,.09)">
+        <div class="rh-card-inner">
+          <div class="rh-card-icon">⛽</div>
+          <div class="rh-card-meta">
+            <div class="rh-tag" style="color:#f59e0b">Operations</div>
+            <div class="rh-card-name">Fuel Report</div>
+            <div class="rh-card-desc">Track consumption, refuelling events, and probe anomalies. Detect theft and excess drain events.</div>
+          </div>
+        </div>
+        <div class="rh-card-foot">
+          <span class="rh-last-run">Level · Refuels · Anomalies</span>
+          <button class="btn btn-primary btn-sm" onclick="rhOpen('fuel','Fuel Report')">Open →</button>
+        </div>
+      </div>
+
+      <!-- Geofence -->
+      <div class="rh-card" style="--rh-accent:#8b5cf6;--rh-icon-bg:rgba(139,92,246,.09)">
+        <div class="rh-card-inner">
+          <div class="rh-card-icon">📍</div>
+          <div class="rh-card-meta">
+            <div class="rh-tag" style="color:#8b5cf6">Compliance</div>
+            <div class="rh-card-name">Geofence Report</div>
+            <div class="rh-card-desc">Monitor zone entry and exit events. Audit dwell time and after-hours boundary violations.</div>
+          </div>
+        </div>
+        <div class="rh-card-foot">
+          <span class="rh-last-run">Events · Zones · Dwell time</span>
+          <button class="btn btn-primary btn-sm" onclick="rhOpen('geofence','Geofence Report')">Open →</button>
+        </div>
+      </div>
+
+      <!-- Route -->
+      <div class="rh-card" style="--rh-accent:#10b981;--rh-icon-bg:rgba(16,185,129,.09)">
+        <div class="rh-card-inner">
+          <div class="rh-card-icon">🗺️</div>
+          <div class="rh-card-meta">
+            <div class="rh-tag" style="color:#10b981">Logistics</div>
+            <div class="rh-card-name">Route Report</div>
+            <div class="rh-card-desc">Analyse trip distances, durations, and route efficiency. Compare actual vs expected journey times.</div>
+          </div>
+        </div>
+        <div class="rh-card-foot">
+          <span class="rh-last-run">Trips · Distance · Duration</span>
+          <button class="btn btn-primary btn-sm" onclick="rhOpen('route','Route Report')">Open →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Custom Builder CTA ───────────────────────────── -->
+  <div class="rh-cta">
+    <div class="rh-cta-text">
+      <h3>Need a custom report?</h3>
+      <p>Group by vehicle, depot, or driver. Apply custom filters, aggregate metrics, and schedule automated email delivery.</p>
+    </div>
+    <a href="{% url 'reporting-custom-builder' %}" class="btn btn-primary">Open Custom Builder →</a>
+  </div>
+
+</div>
+
+<!-- ── Quick-filter drawer ─────────────────────────── -->
+<div class="rh-overlay" id="rh-overlay" onclick="rhClose()"></div>
+<div class="rh-drawer" id="rh-drawer">
+  <div class="rh-drawer-head">
+    <div class="rh-drawer-head-left">
+      <span class="rh-drawer-domain-label" id="rh-drawer-domain">—</span>
+      <span class="rh-drawer-title" id="rh-drawer-title">Report</span>
+    </div>
+    <button class="rh-drawer-close" onclick="rhClose()">✕</button>
+  </div>
+  <div class="rh-drawer-body">
+    <div class="rh-drawer-hint">
+      Select a date range to load the preview. You can filter further by vehicle on the report page.
+    </div>
+    <div class="form-group">
+      <label>Date From</label>
+      <input type="date" id="rh-from" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>Date To</label>
+      <input type="date" id="rh-to" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>Vehicle <span style="color:var(--text-soft);font-weight:400">(optional)</span></label>
+      <select id="rh-vehicle" class="form-control">
+        <option value="">All Vehicles</option>
+        {% for vid, vreg in vehicles_json %}
+        <option value="{{ vid }}">{{ vreg }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="rh-drawer-foot">
+    <button class="btn btn-ghost" onclick="rhClose()">Cancel</button>
+    <button class="btn btn-primary" onclick="rhRun()">Run Report →</button>
+  </div>
+</div>
+
+<script>
+let rhDomain = '';
+function rhOpen(domain, title) {
+  rhDomain = domain;
+  document.getElementById('rh-drawer-domain').textContent = domain.toUpperCase();
+  document.getElementById('rh-drawer-title').textContent = title;
+  // Default: last 7 days
+  const today = new Date();
+  const week  = new Date(today - 7 * 86400000);
+  document.getElementById('rh-from').value = week.toISOString().split('T')[0];
+  document.getElementById('rh-to').value   = today.toISOString().split('T')[0];
+  document.getElementById('rh-drawer').classList.add('open');
+  document.getElementById('rh-overlay').classList.add('open');
+}
+function rhClose() {
+  document.getElementById('rh-drawer').classList.remove('open');
+  document.getElementById('rh-overlay').classList.remove('open');
+}
+function rhRun() {
+  const df = document.getElementById('rh-from').value;
+  const dt = document.getElementById('rh-to').value;
+  const v  = document.getElementById('rh-vehicle').value;
+  if (!df || !dt) { alert('Please select a date range.'); return; }
+  let url = `/reporting/common/${rhDomain}/?date_from=${df}&date_to=${dt}&preview=1`;
+  if (v) url += `&vehicle=${v}`;
+  window.location.href = url;
+}
+</script>
+{% endblock %}

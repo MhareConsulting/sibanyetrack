@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Drivers — myTrack{% endblock %}
+{% block page_title %}Drivers{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'driver-add' %}" class="btn btn-primary btn-sm">
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+  Add Driver
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  {% if drivers %}
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Score</th>
+          <th>Licence</th>
+          <th>Licence Expiry</th>
+          <th>PDP Expiry</th>
+          <th>Vehicle</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for driver in drivers %}
+        <tr>
+          <td>
+            <a href="{% url 'driver-detail' driver.pk %}" style="font-weight:600;color:var(--mh-ink);text-decoration:none;">
+              {{ driver.full_name }}
+            </a>
+            {% if not driver.is_active %}
+              <span class="badge badge-unknown" style="margin-left:6px">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if driver.score_today is not None %}
+              {% if driver.score_today >= 80 %}
+                <span class="badge badge-ok">{{ driver.score_today }}</span>
+              {% elif driver.score_today >= 60 %}
+                <span class="badge badge-warning">{{ driver.score_today }}</span>
+              {% else %}
+                <span class="badge badge-expired">{{ driver.score_today }}</span>
+              {% endif %}
+            {% else %}
+              <span style="color:var(--text-soft)">—</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted)">{{ driver.get_licence_code_display|default:"—" }}</td>
+          <td>
+            {% if driver.licence_expiry %}
+              <span class="badge badge-{{ driver.licence_status }}">
+                {{ driver.licence_expiry|date:"d M Y" }}
+                {% if driver.licence_days_remaining is not None %}
+                  &middot; {% if driver.licence_days_remaining < 0 %}expired{% else %}{{ driver.licence_days_remaining }}d{% endif %}
+                {% endif %}
+              </span>
+            {% else %}<span style="color:var(--text-soft)">—</span>{% endif %}
+          </td>
+          <td>
+            {% if driver.pdp_expiry %}
+              <span class="badge badge-{{ driver.pdp_status }}">
+                {{ driver.pdp_expiry|date:"d M Y" }}
+                {% if driver.pdp_days_remaining is not None %}
+                  &middot; {% if driver.pdp_days_remaining < 0 %}expired{% else %}{{ driver.pdp_days_remaining }}d{% endif %}
+                {% endif %}
+              </span>
+            {% else %}<span style="color:var(--text-soft)">—</span>{% endif %}
+          </td>
+          <td style="color:var(--text-muted)">{{ driver.default_vehicle|default:"—" }}</td>
+          <td style="text-align:right">
+            <a href="{% url 'driver-edit' driver.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:64px 24px;color:var(--text-muted)">
+    <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;opacity:.35"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    <p style="font-weight:600;color:var(--mh-ink);margin-bottom:4px">No drivers yet</p>
+    <p style="font-size:0.84rem">Add your first driver to start tracking compliance.</p>
+    <a href="{% url 'driver-add' %}" class="btn btn-primary btn-sm" style="margin-top:16px">Add Driver</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

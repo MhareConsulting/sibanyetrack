@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}New Inspection — myTrack{% endblock %}
+{% block page_title %}New Inspection{% endblock %}
+
+{% block extra_head %}
+<style>
+@media (max-width: 640px) {
+  .insp-grid-2 { grid-template-columns: 1fr !important; }
+  .insp-checklist { grid-template-columns: 1fr !important; }
+  .insp-checklist label { padding: 14px 12px !important; }
+  .insp-checklist input[type="checkbox"] { width: 20px !important; height: 20px !important; }
+  .insp-result { flex-direction: column; }
+  .insp-result label { width: 100%; }
+  .insp-actions { flex-direction: column; }
+  .insp-actions .btn { width: 100%; justify-content: center; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:760px">
+
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Compliance</div>
+      <h1>New Inspection</h1>
+    </div>
+  </div>
+
+  {% if errors %}
+  <div class="alert alert-danger" style="margin-bottom:16px">
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+    <div>{% for e in errors %}{{ e }}{% if not forloop.last %} &nbsp;|&nbsp; {% endif %}{% endfor %}</div>
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <!-- Section 1: Basic details -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><div class="card-title">Details</div></div>
+      <div class="insp-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group" style="margin:0">
+          <label>Vehicle <span style="color:#dc2626">*</span></label>
+          <select name="vehicle" class="form-control" required>
+            <option value="">— Select vehicle —</option>
+            {% for v in vehicles %}
+            <option value="{{ v.pk }}"{% if post.vehicle == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Driver Name</label>
+          <input type="text" name="driver_name" value="{{ post.driver_name|default:'' }}" class="form-control" placeholder="Optional">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Inspection Type</label>
+          <select name="inspection_type" class="form-control">
+            {% for val, label in inspection_type_choices %}
+            <option value="{{ val }}"{% if post.inspection_type == val %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Odometer (km)</label>
+          <input type="number" name="odometer_km" value="{{ post.odometer_km|default:'' }}" class="form-control" placeholder="Optional" step="0.1" min="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Checklist -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><div class="card-title">Checklist</div><div class="card-subtitle">Check all items inspected as satisfactory</div></div>
+      <div class="insp-checklist" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px">
+        {% for key, label in checklist_items %}
+        <label style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;transition:background 120ms ease" onmouseover="this.style.background='var(--mh-peri-soft)'" onmouseout="this.style.background=''">
+          <input type="checkbox" name="check_{{ key }}"
+            style="width:16px;height:16px;accent-color:var(--mh-purple);cursor:pointer">
+          <span style="font-size:0.88rem;font-weight:500;color:var(--mh-ink)">{{ label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section 3: Result -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><div class="card-title">Result</div></div>
+      <div class="insp-result" style="display:flex;gap:16px;flex-wrap:wrap">
+        {% for val, label in result_choices %}
+        <label style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer;font-weight:500;font-size:0.88rem">
+          <input type="radio" name="result" value="{{ val }}"
+            {% if post.result == val or not post and val == 'pass' %} checked{% endif %}
+            style="accent-color:var(--mh-purple)">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section 4: Defects -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><div class="card-title">Defects</div><div class="card-subtitle">Required if result is Defect Noted or Fail</div></div>
+      <div class="form-group" style="margin:0">
+        <textarea name="defects" class="form-control" rows="3" placeholder="Describe any defects observed…">{{ post.defects|default:'' }}</textarea>
+      </div>
+    </div>
+
+    <!-- Section 5: Notes -->
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-header"><div class="card-title">Notes</div><div class="card-subtitle">Optional additional notes</div></div>
+      <div class="form-group" style="margin:0">
+        <textarea name="notes" class="form-control" rows="2" placeholder="Optional…">{{ post.notes|default:'' }}</textarea>
+      </div>
+    </div>
+
+    <div class="insp-actions" style="display:flex;gap:10px">
+      <button type="submit" class="btn btn-primary">Submit Inspection</button>
+      <a href="{% url 'inspection-list' %}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

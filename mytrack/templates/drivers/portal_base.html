@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>{% block title %}myTrack Driver{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+
+    .portal-header {
+      background: #1e1e2e;
+      color: #f8fafc;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .portal-header .brand { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+    .portal-header .brand span { color: #a78bfa; }
+    .portal-header .driver-name { font-size: 0.82rem; color: #94a3b8; }
+
+    .portal-nav {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      padding: 0 12px;
+    }
+    .portal-nav a {
+      display: inline-block;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #64748b;
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+    }
+    .portal-nav a.active, .portal-nav a:hover { color: #6d28d9; border-bottom-color: #6d28d9; }
+
+    .portal-body { padding: 16px; max-width: 600px; margin: 0 auto; }
+
+    .kpi-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .kpi-card h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em;
+                   color: #64748b; margin-bottom: 8px; }
+
+    .score-big { font-size: 4rem; font-weight: 800; line-height: 1; color: #1e293b; }
+    .grade-badge {
+      display: inline-block;
+      font-size: 1.6rem;
+      font-weight: 800;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .grade-A { background: #dcfce7; color: #15803d; }
+    .grade-B { background: #d1fae5; color: #059669; }
+    .grade-C { background: #fef9c3; color: #ca8a04; }
+    .grade-D { background: #ffedd5; color: #ea580c; }
+    .grade-F { background: #fee2e2; color: #dc2626; }
+    .grade-NA{ background: #f1f5f9; color: #64748b; }
+
+    .trip-row {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .trip-row .dist { font-weight: 700; font-size: 1rem; color: #1e293b; min-width: 60px; }
+    .trip-row .meta { font-size: 0.78rem; color: #64748b; }
+
+    .sparkline-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 50px;
+    }
+    .sparkline-bar .bar-col { flex: 1; border-radius: 3px 3px 0 0; min-height: 4px; }
+
+    .logout-link { font-size: 0.78rem; color: #94a3b8; text-decoration: none; }
+    .logout-link:hover { color: #f8fafc; }
+  </style>
+</head>
+<body>
+  <header class="portal-header">
+    <div>
+      <div class="brand">my<span>Track</span> Driver</div>
+      <div class="driver-name">{{ driver.full_name }}</div>
+    </div>
+    <a href="{% url 'logout' %}" class="logout-link">Sign out</a>
+  </header>
+
+  <nav class="portal-nav">
+    <a href="{% url 'driver-portal-home' %}"{% block nav_home %} class="active"{% endblock %}>Dashboard</a>
+    <a href="{% url 'driver-portal-trips' %}"{% block nav_trips %}{% endblock %}>Trips</a>
+  </nav>
+
+  <main class="portal-body">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

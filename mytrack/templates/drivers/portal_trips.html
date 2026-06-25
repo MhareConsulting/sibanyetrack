@@ -1,0 +1,31 @@
+{% extends "drivers/portal_base.html" %}
+{% block title %}Trips — myTrack Driver{% endblock %}
+{% block nav_home %}{% endblock %}
+{% block nav_trips %} class="active"{% endblock %}
+
+{% block content %}
+
+<div class="kpi-card" style="padding:14px 16px">
+  <h3 style="margin-bottom:12px">Recent trips</h3>
+  {% for trip in trips %}
+  <div class="trip-row">
+    <div class="dist">{% if trip.distance_km %}{{ trip.distance_km|floatformat:1 }} km{% else %}—{% endif %}</div>
+    <div style="flex:1">
+      <div style="font-size:0.85rem;font-weight:600;color:#1e293b">{{ trip.started_at|date:"d M Y" }}</div>
+      <div class="meta">
+        {{ trip.started_at|date:"H:i" }}
+        {% if trip.ended_at %} → {{ trip.ended_at|date:"H:i" }}
+          ({{ trip.duration_minutes }} min)
+        {% else %} (active){% endif %}
+      </div>
+      {% if trip.max_speed_kmh %}
+      <div class="meta">Top speed: {{ trip.max_speed_kmh|floatformat:0 }} km/h</div>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <p style="color:#94a3b8;text-align:center;padding:24px 0">No trips recorded yet.</p>
+  {% endfor %}
+</div>
+
+{% endblock %}

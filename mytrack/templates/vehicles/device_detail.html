@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Device {{ device.imei }} — myTrack{% endblock %}
+{% block page_title %}Device Detail{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:680px">
+
+  <!-- Status card -->
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      {% if device.status == "online" %}
+        <span class="status-dot dot-online" style="width:12px;height:12px"></span>
+        <span style="font-weight:700;font-size:0.85rem;color:#065f46">Online</span>
+      {% elif device.status == "stale" %}
+        <span class="status-dot dot-stale" style="width:12px;height:12px"></span>
+        <span style="font-weight:700;font-size:0.85rem;color:#92400e">Stale</span>
+      {% else %}
+        <span class="status-dot dot-offline" style="width:12px;height:12px"></span>
+        <span style="font-weight:700;font-size:0.85rem;color:var(--text-muted)">Offline</span>
+      {% endif %}
+      <span style="margin-left:auto;font-family:monospace;font-weight:700;font-size:1rem">{{ device.imei }}</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:0.82rem">
+      <div>
+        <div style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Last activity</div>
+        <div>{% if device.last_activity %}{{ device.last_activity|timesince }} ago{% else %}Never{% endif %}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pings (last 24h)</div>
+        <div>{{ ping_count_24h }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Registered</div>
+        <div>{{ device.created_at|date:"d M Y" }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Linked vehicle</div>
+        <div>
+          {% if device.vehicle %}
+            <a href="{% url 'vehicle-edit' device.vehicle.pk %}" style="color:var(--mh-purple);text-decoration:none;font-weight:500">
+              {{ device.vehicle.label|default:device.vehicle.registration }}
+            </a>
+          {% else %}
+            <span style="color:var(--text-soft)">None</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit form -->
+  <div class="card">
+    <h3 style="font-size:0.9rem;font-weight:700;margin:0 0 16px">Edit device</h3>
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Model</label>
+        <input class="form-control" name="model_name" value="{{ device.model_name }}"
+               placeholder="e.g. Teltonika FM3622">
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Phone number</label>
+        <input class="form-control" name="phone_number" value="{{ device.phone_number }}"
+               placeholder="e.g. +27821234567">
+      </div>
+
+      <div class="form-group" style="margin-bottom:20px">
+        <label class="form-label">Linked vehicle</label>
+        <select class="form-control" name="vehicle_id">
+          <option value="">— Unlinked —</option>
+          {% for v in vehicles %}
+          <option value="{{ v.pk }}" {% if device.vehicle_id == v.pk %}selected{% endif %}>
+            {{ v.registration }}{% if v.label %} — {{ v.label }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{% url 'device-list' %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  {% if device_family == "streamax" %}
+  <!-- Streamax AD Plus 2.0 — Alarm Push configuration -->
+  <div class="card" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mh-purple)">
+        <path d="M15 10l4.553-2.069A1 1 0 0 1 21 8.82v6.36a1 1 0 0 1-1.447.889L15 14"/>
+        <rect x="1" y="6" width="14" height="12" rx="2"/>
+      </svg>
+      <h3 style="font-size:0.9rem;font-weight:700;margin:0">Alarm Push configuration</h3>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 16px">
+      On the device's web interface go to <strong>Network → Alarm Push</strong> (or
+      <strong>Platform Settings</strong>, depending on firmware) and enter the values below.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      {% for row in streamax_config_rows %}
+      <div style="font-size:0.82rem">
+        <div style="font-weight:600;margin-bottom:4px">{{ row.label }}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <code style="background:var(--bg-soft,#f4f4f5);border:1px solid var(--border-soft,#e4e4e7);
+                       border-radius:6px;padding:6px 10px;font-size:0.78rem;flex:1;word-break:break-all">{{ row.value }}</code>
+          <button type="button" data-sms="{{ row.value|escapejs }}" class="copy-btn">Copy</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% else %}
+  <!-- SMS setup instructions (GPS trackers) -->
+  <div class="card" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mh-purple)">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <h3 style="font-size:0.9rem;font-weight:700;margin:0">SMS setup instructions</h3>
+      <span style="font-size:0.74rem;color:var(--text-muted);margin-left:auto">
+        server: <code style="font-size:0.78rem">{{ traccar_host }}</code> &nbsp; port: <code style="font-size:0.78rem">{{ device_port }}</code>
+      </span>
+    </div>
+
+    {% if sms_commands %}
+    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px">
+      {% if device_family == "teltonika_fmb" or device_family == "teltonika_fmc" %}
+        Send each SMS to the tracker's SIM (<strong>{{ device.phone_number|default:"see device label" }}</strong>).
+        The device replies to confirm. Replace <code>[YOUR_APN]</code> with your APN (e.g. <code>internet</code> for most SA networks).
+      {% else %}
+        Send to the device SIM (<strong>{{ device.phone_number|default:"see device label" }}</strong>).
+        Replace <code>[YOUR_APN]</code> with your APN. The device replies with <code>+ACK:GTSRI</code>.
+      {% endif %}
+    </div>
+    <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px">
+      {% for label, sms in sms_commands %}
+      <li style="font-size:0.82rem">
+        <div style="font-weight:600;margin-bottom:4px">{{ label }}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <code style="background:var(--bg-soft,#f4f4f5);border:1px solid var(--border-soft,#e4e4e7);border-radius:6px;padding:6px 10px;font-size:0.78rem;flex:1;word-break:break-all">{{ sms }}</code>
+          <button type="button" data-sms="{{ sms|escapejs }}" class="copy-btn">Copy</button>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div style="font-size:0.8rem;color:var(--text-muted)">
+      Update the <strong>Model</strong> field above to a known device (Teltonika FMB/FMC or Queclink GL/GV)
+      and save — the SMS commands for that device family will appear here.
+      <br><br>
+      For unsupported devices, configure them to POST to the OsmAnd HTTP endpoint:<br>
+      <code style="font-size:0.78rem">http://{{ traccar_host }}:5055/?id=[IMEI]&amp;lat={lat}&amp;lon={lon}&amp;speed={speed}</code>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+
+<style>
+.copy-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border-soft, #e4e4e7);
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.copy-btn:hover { background: var(--bg-soft, #f4f4f5); }
+</style>
+
+<script>
+document.querySelectorAll(".copy-btn[data-sms]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(btn.dataset.sms).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = "Copied!";
+      setTimeout(() => btn.textContent = orig, 1500);
+    });
+  });
+});
+</script>
+{% endblock %}

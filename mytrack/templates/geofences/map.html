@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Geofence — myTrack{% endblock %}
+{% block page_title %}{{ action }} Geofence{% endblock %}
+
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  .gf-shell { display: grid; grid-template-columns: 300px 1fr; height: 100%; }
+  .gf-panel {
+    background: #fff; border-right: 1px solid var(--border-soft);
+    display: flex; flex-direction: column; overflow-y: auto; padding: 24px 20px; gap: 0;
+  }
+  #map { height: 100%; cursor: crosshair; }
+  .instruction {
+    background: var(--mh-gradient-soft); border: 1px solid var(--mh-peri);
+    border-radius: 10px; padding: 11px 14px; font-size: 0.82rem;
+    color: var(--mh-ink); margin-bottom: 20px; line-height: 1.6;
+  }
+  .vertex-count {
+    font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;
+  }
+  .draw-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-fullbleed gf-shell">
+
+  <div class="gf-panel">
+    <div class="eyebrow" style="margin-bottom:6px">{{ action }} Geofence</div>
+    <p class="instruction">
+      <strong>Click</strong> on the map to add vertices.<br>
+      <strong>Double-click</strong> or press <kbd style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:0.78rem">Enter</kbd> to close the polygon.
+    </p>
+
+    <form method="post" id="fence-form" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="polygon" id="id_polygon" value="{{ form.polygon.value|default:'[]' }}">
+
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" id="id_name" class="form-control"
+               value="{{ form.name.value|default:'' }}" required placeholder="e.g. Devland yard">
+        {% if form.name.errors %}<div style="color:var(--danger);font-size:0.8rem;margin-top:4px">{{ form.name.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" name="is_active" id="id_is_active"
+               {% if form.is_active.value != False %}checked{% endif %}
+               style="width:16px;height:16px;accent-color:var(--mh-purple)">
+        <label for="id_is_active" style="margin-bottom:0;font-weight:500">Active</label>
+      </div>
+
+      <div class="vertex-count" id="vertex-count">0 vertices placed</div>
+
+      <div class="draw-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="undoVertex()">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+          Undo
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="clearPolygon()">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          Clear
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closePolygon()" id="close-btn" disabled>
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Close
+        </button>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label for="import-file-input" class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Import .kml / .geojson
+        </label>
+        <input type="file" id="import-file-input" accept=".kml,.geojson,.json" style="display:none">
+        <span id="import-status" style="font-size:0.76rem;color:var(--text-muted);display:block;margin-top:4px"></span>
+      </div>
+
+      <details style="margin-bottom:12px;border:1px solid var(--border-soft);border-radius:8px;padding:10px">
+        <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--mh-ink)">
+          Restrict entry hours
+        </summary>
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" name="enforce_hours" id="id_enforce_hours"
+                   {% if form.enforce_hours.value %}checked{% endif %}
+                   style="width:15px;height:15px;accent-color:var(--mh-purple)"
+                   onchange="document.getElementById('hours-fields').style.display=this.checked?'block':'none'">
+            <label for="id_enforce_hours" style="margin:0;font-size:0.84rem">Alert on entry outside hours</label>
+          </div>
+          <div id="hours-fields" style="display:{% if form.enforce_hours.value %}block{% else %}none{% endif %}">
+            <div style="display:flex;gap:8px">
+              <div class="form-group" style="margin:0;flex:1">
+                <label style="font-size:0.78rem">Start</label>
+                <input type="time" name="hours_start" class="form-control"
+                       value="{{ form.hours_start.value|default:'07:00' }}" style="padding:6px 8px">
+              </div>
+              <div class="form-group" style="margin:0;flex:1">
+                <label style="font-size:0.78rem">End</label>
+                <input type="time" name="hours_end" class="form-control"
+                       value="{{ form.hours_end.value|default:'18:00' }}" style="padding:6px 8px">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:8px;margin-bottom:0">
+              <label style="font-size:0.78rem">Active days</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+                {% for day_val, day_label in "0,Mon;1,Tue;2,Wed;3,Thu;4,Fri;5,Sat;6,Sun"|cut:""|safe|default:"" %}{% endfor %}
+                {% for pair in "0:Mon,1:Tue,2:Wed,3:Thu,4:Fri,5:Sat,6:Sun"|split:"," %}{% endfor %}
+              </div>
+              {% for d, lbl in days_of_week %}
+              <label style="display:inline-flex;align-items:center;gap:4px;margin-right:8px;font-size:0.8rem">
+                <input type="checkbox" name="active_days_cb" value="{{ d }}"
+                       {% if d in active_days_list %}checked{% endif %}
+                       style="accent-color:var(--mh-purple)">
+                {{ lbl }}
+              </label>
+              {% endfor %}
+              <input type="hidden" name="active_days" id="id_active_days" value="{{ form.active_days.value|default:'0,1,2,3,4' }}">
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:12px">
+        <button type="submit" id="save-btn" class="btn btn-primary" disabled>Save Geofence</button>
+        <a href="{% url 'geofence-list' %}" class="btn btn-ghost" style="justify-content:center">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <div id="map"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script>
+const EXISTING = {{ existing_polygon|safe }};
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '&copy; OpenStreetMap contributors' }}, layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+  center: [28.0473, -26.2041],
+  zoom: 11,
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+let vertices = [];      // [[lon, lat], ...]
+let closed = false;
+let vertexMarkers = [];
+
+const polygonInput  = document.getElementById('id_polygon');
+const saveBtn       = document.getElementById('save-btn');
+const closeBtn      = document.getElementById('close-btn');
+const vertexCount   = document.getElementById('vertex-count');
+
+// ── Sources & layers (added after map loads) ──────────────────────────────────
+map.on('load', () => {
+  map.addSource('fence', { type: 'geojson', data: emptyGeoJSON() });
+  map.addLayer({ id: 'fence-fill',   type: 'fill', source: 'fence', paint: { 'fill-color': '#8A2BE2', 'fill-opacity': 0.15 } });
+  map.addLayer({ id: 'fence-border', type: 'line', source: 'fence', paint: { 'line-color': '#8A2BE2', 'line-width': 2 } });
+  map.addSource('fence-preview', { type: 'geojson', data: emptyGeoJSON() });
+  map.addLayer({ id: 'fence-preview-line', type: 'line', source: 'fence-preview', paint: { 'line-color': '#8A2BE2', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.6 } });
+
+  if (EXISTING && EXISTING.length >= 3) {
+    vertices = EXISTING.slice();
+    closed = true;
+    redraw();
+    fitToPolygon();
+    enableSave();
+  }
+});
+
+// ── Mouse move — preview line to cursor ───────────────────────────────────────
+map.on('mousemove', e => {
+  if (closed || vertices.length === 0) return;
+  const last = vertices[vertices.length - 1];
+  map.getSource('fence-preview').setData({
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates: [last, [e.lngLat.lng, e.lngLat.lat]] }
+  });
+});
+
+// ── Click — add vertex ────────────────────────────────────────────────────────
+map.on('click', e => {
+  if (closed) return;
+  const pt = [e.lngLat.lng, e.lngLat.lat];
+  vertices.push(pt);
+  addMarker(pt, vertices.length - 1);
+  redraw();
+  updateUI();
+});
+
+// ── Double-click — close polygon ──────────────────────────────────────────────
+map.on('dblclick', e => {
+  e.preventDefault();
+  if (vertices.length >= 3) closePolygon();
+});
+
+// ── Keyboard Enter ────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.target.matches('input,textarea') && vertices.length >= 3) {
+    e.preventDefault();
+    closePolygon();
+  }
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function emptyGeoJSON() {
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[]] } };
+}
+
+function addMarker(pt, idx) {
+  const el = document.createElement('div');
+  el.style.cssText = 'width:10px;height:10px;border-radius:50%;background:#8A2BE2;border:2px solid #fff;box-shadow:0 1px 4px rgba(138,43,226,.5)';
+  const m = new maplibregl.Marker({ element: el }).setLngLat(pt).addTo(map);
+  vertexMarkers.push(m);
+}
+
+function redraw() {
+  if (!map.getSource('fence')) return;
+  const coords = closed ? [...vertices, vertices[0]] : vertices;
+  map.getSource('fence').setData({
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [coords.length >= 3 ? coords : []] }
+  });
+}
+
+function updateUI() {
+  const n = vertices.length;
+  vertexCount.textContent = `${n} vert${n === 1 ? 'ex' : 'ices'} placed${closed ? ' · polygon closed' : ''}`;
+  closeBtn.disabled = n < 3 || closed;
+}
+
+function closePolygon() {
+  if (vertices.length < 3) return;
+  closed = true;
+  map.getSource('fence-preview').setData(emptyGeoJSON());
+  redraw();
+  updateUI();
+  enableSave();
+}
+
+function enableSave() {
+  const ring = [...vertices, vertices[0]];
+  polygonInput.value = JSON.stringify(ring);
+  saveBtn.disabled = false;
+}
+
+function undoVertex() {
+  if (closed) { closed = false; updateUI(); redraw(); return; }
+  if (vertices.length === 0) return;
+  vertices.pop();
+  const m = vertexMarkers.pop();
+  if (m) m.remove();
+  redraw();
+  updateUI();
+  saveBtn.disabled = true;
+}
+
+function clearPolygon() {
+  vertices = [];
+  closed = false;
+  vertexMarkers.forEach(m => m.remove());
+  vertexMarkers = [];
+  if (map.getSource('fence')) redraw();
+  if (map.getSource('fence-preview')) map.getSource('fence-preview').setData(emptyGeoJSON());
+  polygonInput.value = '[]';
+  saveBtn.disabled = true;
+  updateUI();
+}
+
+function fitToPolygon() {
+  if (vertices.length === 0) return;
+  const lons = vertices.map(p => p[0]);
+  const lats = vertices.map(p => p[1]);
+  map.fitBounds(
+    [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+    { padding: 80, duration: 600 }
+  );
+  vertices.forEach((pt, i) => addMarker(pt, i));
+}
+
+// ── Active days checkboxes → hidden input ─────────────────────────────────────
+(function() {
+  function syncDays() {
+    const cbs = document.querySelectorAll('[name="active_days_cb"]:checked');
+    const vals = Array.from(cbs).map(cb => cb.value);
+    const inp = document.getElementById('id_active_days');
+    if (inp) inp.value = vals.join(',');
+  }
+  document.querySelectorAll('[name="active_days_cb"]').forEach(cb => cb.addEventListener('change', syncDays));
+  syncDays();
+})();
+
+// ── File import ────────────────────────────────────────────────────────────────
+function loadCoordinates(coords) {
+  clearPolygon();
+  coords.forEach(function(pt, i) {
+    vertices.push(pt);
+    addMarker(pt, i);
+  });
+  redraw();
+  updateUI();
+  if (vertices.length >= 3) closePolygon();
+  fitToPolygon();
+}
+
+document.getElementById('import-file-input').addEventListener('change', async function() {
+  const file = this.files[0];
+  if (!file) return;
+  const status = document.getElementById('import-status');
+  status.textContent = 'Parsing…';
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  try {
+    const resp = await fetch('{% url "geofence-parse-file" %}', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) {
+      status.textContent = '✗ ' + data.error;
+      status.style.color = '#dc2626';
+    } else {
+      loadCoordinates(data.coordinates);
+      status.textContent = '✓ Loaded ' + data.coordinates.length + ' vertices';
+      status.style.color = '#16a34a';
+    }
+  } catch (e) {
+    status.textContent = '✗ Upload failed';
+    status.style.color = '#dc2626';
+  }
+  this.value = '';
+});
+</script>
+{% endblock %}

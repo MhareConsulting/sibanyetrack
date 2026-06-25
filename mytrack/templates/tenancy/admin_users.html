@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}User Search — Admin{% endblock %}
+{% block page_title %}User Search{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  {% if messages %}
+  <ul style="list-style:none;padding:0;margin:0 0 16px">
+    {% for m in messages %}
+    <li style="padding:10px 14px;border-radius:8px;font-size:0.88rem;margin-bottom:8px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0">{{ m }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+    <a href="{% url 'admin-applications' %}" class="btn btn-ghost btn-sm">← Applications</a>
+    <a href="{% url 'admin-user-create' %}" class="btn btn-primary btn-sm">+ Add user</a>
+    <form method="get" style="display:flex;gap:8px;flex:1;max-width:420px">
+      <input name="q" value="{{ q }}" placeholder="Search username, name, or email…"
+             style="flex:1;border:1px solid var(--border-soft);border-radius:8px;padding:7px 12px;font-size:0.83rem;outline:none">
+      <button type="submit" class="btn btn-ghost btn-sm">Search</button>
+      {% if q %}<a href="{% url 'admin-user-search' %}" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
+    </form>
+    <span style="font-size:0.8rem;color:var(--text-muted);margin-left:auto">{{ users|length }} result{{ users|length|pluralize }}</span>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Organisation</th>
+          <th>Consumes licence</th>
+          <th>Staff</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td style="font-weight:700;font-size:0.82rem">{{ u.username }}</td>
+          <td style="font-size:0.82rem">{{ u.get_full_name|default:"—" }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">{{ u.email|default:"—" }}</td>
+          <td>
+            <span style="font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:999px;
+              {% if u.role == 'admin' %}background:#ede9fe;color:#5b21b6{% elif u.role == 'dispatcher' %}background:#dbeafe;color:#1e40af{% else %}background:#f3f4f6;color:#6b7280{% endif %}">
+              {{ u.get_role_display }}
+            </span>
+          </td>
+          <td>
+            {% if u.organisation %}
+              <a href="{% url 'admin-org-detail' u.organisation.pk %}"
+                 style="color:var(--mh-purple);text-decoration:none;font-size:0.82rem;font-weight:500">
+                {{ u.organisation.name }}
+              </a>
+            {% else %}
+              <span style="color:var(--text-soft)">—</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if u.consumes_license %}
+              <span style="color:#065f46;font-size:0.8rem">✓</span>
+            {% else %}
+              <span style="color:var(--text-muted);font-size:0.8rem">—</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if u.is_staff %}<span style="color:#92400e;font-size:0.8rem">✓</span>{% else %}—{% endif %}
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            <a href="{% url 'admin-user-edit' u.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:32px">
+          {% if q %}No users match "{{ q }}".{% else %}No users found.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

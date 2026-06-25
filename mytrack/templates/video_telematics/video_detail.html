@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Video — {{ asset.vehicle.registration }}{% endblock %}
+{% block page_title %}Video clip{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:920px">
+
+  <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:16px">
+    <a href="{% url 'video-list' %}">← All clips</a>
+    &nbsp;·&nbsp; {{ asset.vehicle.registration }}
+    &nbsp;·&nbsp; {{ asset.occurred_at|date:"d M Y H:i" }}
+    {% if asset.alert_id %}
+    &nbsp;·&nbsp; <a href="{% url 'alert-list' %}?vehicle={{ asset.vehicle_id }}">Related alerts</a>
+    {% endif %}
+  </p>
+
+  <div class="card" style="padding:20px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;font-size:0.84rem;color:var(--text-muted)">
+      <span><strong style="color:var(--mh-ink)">Trigger</strong> — {{ asset.get_trigger_type_display }}</span>
+      <span><strong style="color:var(--mh-ink)">Source</strong> — {{ asset.get_ingest_source_display }}</span>
+      {% if asset.duration_seconds %}<span><strong style="color:var(--mh-ink)">Duration</strong> — {{ asset.duration_seconds }} s</span>{% endif %}
+    </div>
+
+    {% if play_url %}
+    <video controls playsinline preload="metadata" style="width:100%;max-height:72vh;border-radius:10px;background:#000">
+      <source src="{{ play_url }}" type="{{ asset.content_type|default:'video/mp4' }}">
+      Your browser does not support embedded video.
+    </video>
+    {% else %}
+    <p style="color:var(--text-muted)">No playable media is attached to this record.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

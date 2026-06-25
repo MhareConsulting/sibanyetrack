@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Fuel Events — myTrack{% endblock %}
+{% block page_title %}Fuel Events{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'fuel-vehicle-list' %}" class="btn btn-ghost btn-sm">← Fleet Overview</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  {% if unacked_count %}
+  <div class="alert alert-danger" style="margin-bottom:18px">
+    {{ unacked_count }} unreviewed theft/drain event{{ unacked_count|pluralize }} require attention.
+  </div>
+  {% endif %}
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Vehicle</label>
+      <select name="vehicle" class="form-control">
+        <option value="">All vehicles</option>
+        {% for v in vehicles %}
+        <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Event type</label>
+      <select name="kind" class="form-control">
+        <option value="">All types</option>
+        {% for val, label in kind_choices %}
+        <option value="{{ val }}"{% if kind_filter == val %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:140px">
+      <label>Status</label>
+      <select name="ack" class="form-control">
+        <option value="">All</option>
+        <option value="0"{% if ack_filter == '0' %} selected{% endif %}>Unreviewed</option>
+        <option value="1"{% if ack_filter == '1' %} selected{% endif %}>Reviewed</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if vehicle_filter or kind_filter or ack_filter %}
+    <a href="{% url 'fuel-event-list' %}" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Event</th>
+          <th>Before</th>
+          <th>After</th>
+          <th>Change</th>
+          <th>Driver</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in page_obj %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ event.vehicle.registration }}</td>
+          <td>
+            {% if event.kind == 'refuel' %}
+              <span class="badge badge-ok">Refuel</span>
+            {% elif event.kind == 'theft' %}
+              <span class="badge badge-expired">Theft</span>
+            {% else %}
+              <span class="badge badge-warning">Drain</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted)">{{ event.level_before|floatformat:1 }} L</td>
+          <td style="color:var(--text-muted)">{{ event.level_after|floatformat:1 }} L</td>
+          <td>
+            {% if event.delta_litres > 0 %}
+              <span style="color:var(--success);font-weight:600">+{{ event.delta_litres|floatformat:1 }} L</span>
+            {% else %}
+              <span style="color:var(--danger);font-weight:600">{{ event.delta_litres|floatformat:1 }} L</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted)">{{ event.driver_name|default:"—" }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ event.occurred_at|date:"d M Y H:i" }}</td>
+          <td>
+            {% if event.acknowledged %}
+              <span class="badge badge-ok">Reviewed</span>
+            {% elif event.kind == 'refuel' %}
+              <span class="badge badge-unknown">—</span>
+            {% else %}
+              <span class="badge badge-expired">Needs review</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;padding-right:12px">
+            {% if not event.acknowledged and event.kind != 'refuel' %}
+            <form method="post" action="{% url 'fuel-event-acknowledge' event.pk %}" style="display:inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm">Acknowledge</button>
+            </form>
+            {% endif %}
+            <a href="{% url 'fuel-vehicle-detail' event.vehicle.pk %}" class="btn btn-ghost btn-sm">History</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" style="text-align:center;padding:48px;color:var(--text-muted)">No fuel events recorded.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&vehicle={{ vehicle_filter }}&kind={{ kind_filter }}&ack={{ ack_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&vehicle={{ vehicle_filter }}&kind={{ kind_filter }}&ack={{ ack_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

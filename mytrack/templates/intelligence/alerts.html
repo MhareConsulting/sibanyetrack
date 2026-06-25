@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Alerts — myTrack{% endblock %}
+{% block page_title %}Alerts{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'event-list' %}" class="btn btn-ghost btn-sm">Unified Events</a>
+{% if unresolved_alert_count %}
+<span style="font-size:0.82rem;color:var(--text-muted)">{{ unresolved_alert_count }} unresolved</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:120px">
+      <label>Kind</label>
+      <select name="kind" class="form-control">
+        <option value="">All kinds</option>
+        {% for val, label in kind_choices %}
+        <option value="{{ val }}"{% if kind_filter == val %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Vehicle</label>
+      <select name="vehicle" class="form-control">
+        <option value="">All vehicles</option>
+        {% for v in vehicles %}
+        <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Date</label>
+      <input type="date" name="date" value="{{ date_filter }}" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if kind_filter or vehicle_filter or date_filter %}
+    <a href="{% url 'alert-list' %}" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if open_matching_count and open_matching_count > 0 %}
+  <div id="resolve-all-bar" style="
+    background:#fefce8;border:1px solid #fde68a;border-radius:8px;
+    padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;
+    gap:10px;flex-wrap:wrap">
+    <span style="font-size:0.88rem;color:#92400e;font-weight:600">
+      {{ open_matching_count }} open alert{{ open_matching_count|pluralize }} match your current filters
+    </span>
+    <form method="post" action="{% url 'alerts-resolve-filtered' %}"
+          style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"
+          onsubmit="return confirm('Resolve all {{ open_matching_count }} matching open alerts?')">
+      {% csrf_token %}
+      <input type="hidden" name="kind"    value="{{ kind_filter }}">
+      <input type="hidden" name="vehicle" value="{{ vehicle_filter }}">
+      <input type="hidden" name="date"    value="{{ date_filter }}">
+      <select name="note" class="form-control"
+              style="font-size:0.82rem;padding:4px 8px;min-width:160px;height:auto">
+        <option value="Driver notified">Driver notified</option>
+        <option value="False positive">False positive</option>
+        <option value="Known vehicle fault">Known vehicle fault</option>
+        <option value="No action needed">No action needed</option>
+        <option value="Under investigation">Under investigation</option>
+      </select>
+      <button type="submit" class="btn btn-sm"
+              style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-weight:600;cursor:pointer">
+        Resolve all {{ open_matching_count }}
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:36px;text-align:center;padding:0 8px">
+            <input type="checkbox" id="select-all-cb" title="Select all"
+                   style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary,#8A2BE2)">
+          </th>
+          <th>Kind</th><th>Vehicle</th><th>Driver</th><th>Value</th><th>Threshold</th><th>Occurred</th><th>Status</th><th>Video</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="alerts-tbody">
+        {% for alert in page_obj %}
+          {% include "intelligence/_alert_row.html" %}
+        {% empty %}
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted)">No alerts.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Bulk action bar — hidden until ≥ 1 checkbox selected #}
+  <form id="bulk-action-form" method="post" action="{% url 'alerts-bulk-action' %}" style="display:none">
+    {% csrf_token %}
+    <input type="hidden" name="action" id="bulk-action-input" value="">
+    <input type="hidden" name="bulk_note" id="bulk-note-input" value="">
+    <div id="alert-ids-container"></div>
+  </form>
+
+  <div id="bulk-action-bar" style="
+    display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#1e293b;color:#f8fafc;padding:12px 20px;border-radius:10px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.35);display:none;align-items:center;
+    gap:12px;z-index:1000;font-size:0.88rem;min-width:340px;justify-content:space-between">
+    <span id="bulk-selected-label">0 selected</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="bulk-note-select"
+              style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:none;min-width:150px">
+        <option value="Driver notified">Driver notified</option>
+        <option value="False positive">False positive</option>
+        <option value="Known vehicle fault">Known vehicle fault</option>
+        <option value="No action needed">No action needed</option>
+        <option value="Under investigation">Under investigation</option>
+      </select>
+      <button type="button" id="bulk-resolve-btn"
+              style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:0.85rem;font-weight:600">
+        Resolve selected (0)
+      </button>
+      <button type="button" id="bulk-export-btn"
+              style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:0.85rem;font-weight:600">
+        Export PDF (0)
+      </button>
+      <button type="button" id="bulk-cancel-btn"
+              style="background:rgba(255,255,255,0.15);color:#f8fafc;border:none;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:0.85rem">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    const bar       = document.getElementById('bulk-action-bar');
+    const form      = document.getElementById('bulk-action-form');
+    const container = document.getElementById('alert-ids-container');
+    const actionIn  = document.getElementById('bulk-action-input');
+    const selLabel  = document.getElementById('bulk-selected-label');
+    const resolveBtn= document.getElementById('bulk-resolve-btn');
+    const exportBtn = document.getElementById('bulk-export-btn');
+    const cancelBtn = document.getElementById('bulk-cancel-btn');
+    const selectAll = document.getElementById('select-all-cb');
+
+    function getChecked() {
+      return Array.from(document.querySelectorAll('.alert-select-cb:checked'));
+    }
+
+    function updateBar() {
+      const checked = getChecked();
+      const n = checked.length;
+      if (n > 0) {
+        bar.style.display = 'flex';
+        selLabel.textContent = n + ' selected';
+        resolveBtn.textContent = 'Resolve selected (' + n + ')';
+        exportBtn.textContent  = 'Export PDF (' + n + ')';
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+
+    function buildForm(action) {
+      actionIn.value = action;
+      const noteSelect = document.getElementById('bulk-note-select');
+      const noteInput  = document.getElementById('bulk-note-input');
+      if (noteInput && noteSelect) noteInput.value = noteSelect.value;
+      container.innerHTML = '';
+      getChecked().forEach(function(cb) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'alert_ids';
+        inp.value = cb.value;
+        container.appendChild(inp);
+      });
+    }
+
+    document.getElementById('alerts-tbody').addEventListener('change', function(e) {
+      if (e.target.classList.contains('alert-select-cb')) updateBar();
+    });
+
+    selectAll.addEventListener('change', function() {
+      document.querySelectorAll('.alert-select-cb').forEach(cb => cb.checked = selectAll.checked);
+      updateBar();
+    });
+
+    resolveBtn.addEventListener('click', function() {
+      if (!getChecked().length) return;
+      buildForm('resolve');
+      form.submit();
+    });
+
+    exportBtn.addEventListener('click', function() {
+      if (!getChecked().length) return;
+      buildForm('export_pdf');
+      form.submit();
+    });
+
+    cancelBtn.addEventListener('click', function() {
+      document.querySelectorAll('.alert-select-cb').forEach(cb => cb.checked = false);
+      if (selectAll) selectAll.checked = false;
+      updateBar();
+    });
+  })();
+  </script>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&kind={{ kind_filter }}&vehicle={{ vehicle_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&kind={{ kind_filter }}&vehicle={{ vehicle_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

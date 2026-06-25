@@ -1,0 +1,39 @@
+# Flushes the SyncOutbox — delivers queued GPS pings, entity syncs, and fuel events
+# to MyRoutes. Runs every minute; two jobs staggered by 30 s give ~30 s delivery lag.
+#
+# Required repository secrets:
+#   SITE_URL                 — public myTrack base URL, e.g. https://track.mharetech.co.za
+#   CRON_EMAIL_TRIGGER_TOKEN — same CRON_EMAIL_TRIGGER_TOKEN as in production .env
+
+name: Sync outbox flush
+
+on:
+  schedule:
+    - cron: "* * * * *"
+  workflow_dispatch:
+
+jobs:
+  flush-on-the-minute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flush outbox
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          TOKEN: ${{ secrets.CRON_EMAIL_TRIGGER_TOKEN }}
+        run: |
+          curl -fsS -X POST "${SITE_URL%/}/api/cron/flush-outbox/" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json"
+
+  flush-at-30s:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait 30 s then flush outbox
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          TOKEN: ${{ secrets.CRON_EMAIL_TRIGGER_TOKEN }}
+        run: |
+          sleep 30
+          curl -fsS -X POST "${SITE_URL%/}/api/cron/flush-outbox/" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json"

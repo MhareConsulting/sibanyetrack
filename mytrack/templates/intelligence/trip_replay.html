@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% block title %}Replay — {{ trip.vehicle }} — myTrack{% endblock %}
+{% block page_title %}Trip Replay — {{ trip.vehicle }}{% endblock %}
+
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  .replay-shell { display:flex; flex-direction:column; height:100%; }
+  #replay-map   { flex:1; min-height:0; position:relative; }
+
+  /* ── Bottom controls bar ───────────────────────────────── */
+  .replay-footer {
+    display:flex; align-items:center; gap:12px;
+    background:#fff; border-top:1px solid var(--border-soft);
+    padding:8px 16px; flex-shrink:0;
+  }
+  .rf-center { flex:1; display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .rf-meta {
+    display:flex; align-items:center; gap:6px;
+    font-size:.8rem; color:var(--mh-ink);
+  }
+  .rf-meta strong { font-weight:700; }
+  .rf-sep { color:var(--border); }
+  .rf-vehicle { margin-left:auto; font-size:.7rem; color:var(--text-muted); white-space:nowrap; }
+  #scrubber { width:100%; accent-color:var(--mh-purple); cursor:pointer; }
+  .rf-scrubber-row { display:flex; justify-content:space-between; font-size:.6rem; color:var(--text-soft); }
+  .rf-controls { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+
+  /* ── Map overlays ──────────────────────────────────────── */
+  .speed-legend {
+    position:absolute; bottom:12px; left:12px; background:rgba(255,255,255,0.92);
+    border-radius:8px; padding:8px 12px; font-size:0.76rem; color:#1e293b;
+    box-shadow:0 1px 6px rgba(0,0,0,.12); z-index:10; pointer-events:none;
+  }
+  .speed-legend .swatch { display:inline-block; width:16px; height:6px; border-radius:3px; margin-right:5px; vertical-align:middle; }
+  #speed-tooltip {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    background:rgba(30,41,59,0.9); color:#f8fafc; font-size:0.78rem;
+    padding:5px 10px; border-radius:6px; pointer-events:none; z-index:20; display:none;
+    white-space:nowrap;
+  }
+
+  /* ── Telemetry Pod — top-right floating card ───────────── */
+  .tpod-wrap { position:absolute; top:74px; right:16px; z-index:10; }
+  .tpod {
+    width:260px;
+    background:rgba(255,255,255,0.95);
+    backdrop-filter:blur(8px) saturate(1.5);
+    border:1px solid rgba(255,255,255,0.65);
+    border-radius:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.13);
+    overflow:hidden;
+    transition:box-shadow .3s;
+  }
+  .tpod.is-critical {
+    box-shadow:0 2px 8px rgba(220,38,38,.25), 0 8px 24px rgba(220,38,38,.2);
+  }
+  .tpod.is-collapsed .tpod-body,
+  .tpod.is-collapsed .tpod-foot { display:none; }
+
+  /* Header */
+  .tpod-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:5px 10px;
+    background:var(--mh-peri-soft);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .tpod-dots { display:flex; align-items:center; gap:5px; }
+  .tpod-dot {
+    width:7px; height:7px; border-radius:50%;
+    background:var(--border); transition:background .4s; cursor:default;
+  }
+  .tpod-dot[data-status="ok"]   { background:var(--success); }
+  .tpod-dot[data-status="warn"] { background:var(--warning); }
+  .tpod-dot[data-status="dead"] { background:var(--danger); }
+  .tpod-head-label {
+    font-size:.58rem; font-weight:700; letter-spacing:.08em;
+    color:var(--text-soft); text-transform:uppercase;
+  }
+  .tpod-toggle {
+    background:none; border:none; cursor:pointer;
+    color:var(--text-soft); padding:0 2px; font-size:.9rem;
+    line-height:1; transition:color .2s, transform .3s;
+  }
+  .tpod-toggle:hover { color:var(--mh-ink); }
+  .tpod.is-collapsed .tpod-toggle { transform:rotate(180deg); }
+
+  /* Body */
+  .tpod-body { display:flex; align-items:center; gap:12px; padding:10px 12px 8px; }
+
+  /* Speed ring */
+  .tpod-speed-ring {
+    position:relative; width:72px; height:72px; border-radius:50%;
+    flex-shrink:0; background:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    line-height:1;
+  }
+  .tpod-speed-ring::before {
+    content:''; position:absolute; inset:-2px; border-radius:50%;
+    background:var(--mh-gradient); z-index:-1;
+  }
+  .tpod.is-critical .tpod-speed-ring::before { background:var(--danger); }
+  .tpod-speed-value {
+    font-size:1.75rem; font-weight:900; letter-spacing:-2px;
+    font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace;
+    color:var(--text-soft); transition:color .3s;
+  }
+  .tpod-speed-value.is-moving { color:var(--mh-cyan); }
+  .tpod-speed-unit {
+    font-size:.5rem; font-weight:700; letter-spacing:.07em;
+    color:var(--text-muted); text-transform:uppercase; margin-top:2px;
+  }
+
+  /* Right column */
+  .tpod-right { flex:1; display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .tpod-dir   { display:flex; align-items:center; gap:5px; }
+  .tpod-arrow {
+    font-size:1rem; color:var(--mh-purple); display:inline-block;
+    transition:transform .6s cubic-bezier(.25,.46,.45,.94);
+  }
+  .tpod-cardinal { font-size:.78rem; font-weight:800; color:var(--mh-ink); }
+  .tpod-bearing  { font-size:.62rem; color:var(--text-soft); font-variant-numeric:tabular-nums; }
+
+  /* Speed bar */
+  .tpod-speed-bar {
+    height:3px; background:var(--border); border-radius:2px; overflow:hidden;
+  }
+  .tpod-speed-fill {
+    height:100%; background:var(--success); border-radius:2px;
+    transition:width .5s ease, background .3s;
+  }
+  .tpod-speed-bar[data-ratio="warn"] .tpod-speed-fill { background:var(--warning); }
+  .tpod-speed-bar[data-ratio="over"] .tpod-speed-fill { background:var(--danger); }
+  .tpod-limit-label { font-size:.57rem; color:var(--text-soft); }
+
+  /* Warning pills */
+  .tpod-warnings { display:flex; gap:3px; flex-wrap:wrap; }
+  .tpod-warn-pill {
+    opacity:.18; background:var(--border); color:var(--text-soft);
+    font-size:.55rem; font-weight:700; letter-spacing:.05em;
+    padding:2px 5px; border-radius:3px;
+    transition:opacity .3s, background .3s, color .3s; white-space:nowrap;
+  }
+  .tpod-warn-pill.is-active { opacity:1; }
+  .tpod-warn-pill.is-active[data-alert="HARSH_BRAKING"],
+  .tpod-warn-pill.is-active[data-alert="HARSH_ACCEL"] { background:rgba(220,38,38,.15); color:var(--danger); }
+  .tpod-warn-pill.is-active[data-alert="HARSH_CORNERING"],
+  .tpod-warn-pill.is-active[data-alert="SPEEDING"] { background:rgba(245,158,11,.15); color:var(--warning); }
+  .tpod-warn-pill.is-active[data-alert="IDLE"] { background:var(--mh-peri-soft); color:var(--text-muted); }
+  @keyframes warnpulse {
+    0%,100%{box-shadow:none} 50%{box-shadow:0 0 5px currentColor}
+  }
+  .tpod-warn-pill.is-active { animation:warnpulse 1.8s ease-in-out 3; }
+
+  /* Footer strip */
+  .tpod-foot { display:flex; border-top:1px solid var(--border-soft); }
+  .tpod-stat {
+    flex:1; padding:5px 12px;
+    display:flex; align-items:baseline; gap:3px;
+  }
+  .tpod-stat + .tpod-stat { border-left:1px solid var(--border-soft); }
+  .tpod-stat-lbl {
+    font-size:.57rem; font-weight:700; letter-spacing:.07em;
+    color:var(--text-soft); text-transform:uppercase;
+  }
+  .tpod-stat-val { font-size:.8rem; font-weight:700; color:var(--mh-ink); font-variant-numeric:tabular-nums; }
+  .tpod-stat-unit { font-size:.57rem; color:var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-fullbleed replay-shell">
+  <div id="replay-map">
+    <div id="speed-tooltip"></div>
+    {% include "intelligence/snippets/telemetry_pod.html" %}
+    <div class="speed-legend">
+      <div style="font-weight:700;margin-bottom:5px">Speed vs limit</div>
+      <div><span class="swatch" style="background:#22c55e"></span>&lt; 80 %</div>
+      <div><span class="swatch" style="background:#eab308"></span>80–100 %</div>
+      <div><span class="swatch" style="background:#ef4444"></span>&gt; 100 % (speeding)</div>
+    </div>
+  </div>
+
+  <div class="replay-footer">
+    <div class="rf-center">
+      <div class="rf-meta">
+        Speed: <strong id="info-speed">—</strong>
+        <span class="rf-sep">·</span>
+        Time: <strong id="info-time">—</strong>
+        <span class="rf-sep">·</span>
+        Dist: <strong id="info-dist">0 km</strong>
+        <span class="rf-vehicle">{{ trip.vehicle }} · {{ trip.started_at|date:"d M Y" }}</span>
+      </div>
+      <input type="range" id="scrubber" min="0" value="0">
+      <div class="rf-scrubber-row">
+        <span id="rf-time-start">—</span>
+        <span id="scrubber-label">0 / 0</span>
+        <span id="rf-time-end">—</span>
+      </div>
+    </div>
+    <div class="rf-controls">
+      <button id="btn-play" class="btn btn-primary btn-sm">▶ Play</button>
+      <select id="speed-select" class="form-control" style="width:72px">
+        <option value="1">1×</option>
+        <option value="5" selected>5×</option>
+        <option value="20">20×</option>
+        <option value="50">50×</option>
+      </select>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script>
+{% include "tracking/snippets/trip_route_stops.js.inc" %}
+const TRIP_ID = {{ trip.pk }};
+const API_URL        = `/api/trips/${TRIP_ID}/pings/`;
+const ALERTS_API_URL = `/api/trips/${TRIP_ID}/alerts/`;
+
+// ── TelemetryPod ────────────────────────────────────────
+class TelemetryPod {
+  constructor(el) {
+    this.el = el;
+    this.alerts = [];
+    document.getElementById('tpod-toggle')
+      .addEventListener('click', () => this.el.classList.toggle('is-collapsed'));
+  }
+
+  async loadAlerts() {
+    try {
+      const res  = await fetch(ALERTS_API_URL);
+      const data = await res.json();
+      this.alerts = data.alerts || [];
+    } catch (_) { this.alerts = []; }
+  }
+
+  update(ping) {
+    this._setSpeed(ping.speed_kmh, ping.road_speed_limit_kmh);
+    this._setHeading(ping.heading);
+    this._checkAlerts(ping.ts);
+  }
+
+  _setSpeed(speed, limit) {
+    const val = this.el.querySelector('.tpod-speed-value');
+    val.textContent = speed != null ? Math.round(speed) : '0';
+    val.classList.toggle('is-moving', speed != null && speed > 0);
+
+    const ratio = (limit > 0 && speed != null) ? speed / limit : 0;
+    this.el.querySelector('.tpod-speed-fill').style.width = Math.min(ratio * 100, 100) + '%';
+    this.el.querySelector('.tpod-speed-bar').dataset.ratio =
+      ratio >= 1 ? 'over' : ratio >= 0.8 ? 'warn' : 'ok';
+    this.el.querySelector('.tpod-limit-label').textContent =
+      limit ? `${Math.round(limit)} km/h limit` : '';
+
+    const hasCritical = this.el.querySelector('.tpod-warn-pill.is-active[data-alert="HARSH_BRAKING"]') ||
+                        this.el.querySelector('.tpod-warn-pill.is-active[data-alert="HARSH_ACCEL"]');
+    this.el.classList.toggle('is-critical', !!hasCritical);
+  }
+
+  _setHeading(deg) {
+    if (deg == null) return;
+    const cardinals = ['N','NE','E','SE','S','SW','W','NW'];
+    this.el.querySelector('.tpod-cardinal').textContent = cardinals[Math.round(deg / 45) % 8];
+    this.el.querySelector('.tpod-bearing').textContent  = Math.round(deg) + '°';
+    this.el.querySelector('.tpod-arrow').style.transform = `rotate(${deg}deg)`;
+  }
+
+  _checkAlerts(ts) {
+    if (!ts) return;
+    const t = new Date(ts).getTime();
+    this.alerts.forEach(a => {
+      if (Math.abs(new Date(a.occurred_at).getTime() - t) < 30000)
+        this._flashPill(a.kind);
+    });
+  }
+
+  _flashPill(kind) {
+    const pill = this.el.querySelector(`[data-alert="${kind}"]`);
+    if (!pill || pill.classList.contains('is-active')) return;
+    pill.classList.add('is-active');
+    setTimeout(() => pill.classList.remove('is-active'), 4000);
+  }
+}
+
+const pod = new TelemetryPod(document.getElementById('telemetry-pod'));
+
+let pings = [], cumDist = [], currentIdx = 0, playing = false, timer = null;
+
+const map = new maplibregl.Map({
+  container: 'replay-map',
+  style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '&copy; OpenStreetMap contributors' }}, layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+  center: [28.0473, -26.2041],
+  zoom: 11,
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+// Haversine in km
+function hav(a, b) {
+  const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+map.on('load', async () => {
+  const [res] = await Promise.all([fetch(API_URL), pod.loadAlerts()]);
+  const data = await res.json();
+  pings = data.pings;
+
+  if (!pings.length) {
+    document.getElementById('info-speed').textContent = 'No pings recorded';
+    return;
+  }
+
+  // Pre-compute cumulative distances
+  cumDist = [0];
+  for (let i = 1; i < pings.length; i++) {
+    cumDist.push(cumDist[i-1] + hav(pings[i-1], pings[i]));
+  }
+
+  // Speed heatmap — colour each segment by speed vs road limit
+  function buildHeatGeoJSON(pings) {
+    const features = [];
+    for (let i = 0; i < pings.length - 1; i++) {
+      const p = pings[i], q = pings[i + 1];
+      const speed = p.speed_kmh || 0;
+      const limit = p.road_speed_limit_kmh || 120;
+      const ratio = speed / limit;
+      const tier = ratio > 1.0 ? 'over' : ratio > 0.8 ? 'warn' : 'ok';
+      features.push({
+        type: 'Feature',
+        properties: { tier, speed: Math.round(speed), limit: Math.round(limit) },
+        geometry: { type: 'LineString', coordinates: [[p.lon, p.lat], [q.lon, q.lat]] },
+      });
+    }
+    return { type: 'FeatureCollection', features };
+  }
+
+  map.addSource('route-heat', { type: 'geojson', data: buildHeatGeoJSON(pings) });
+  map.addLayer({
+    id: 'route-heat-line',
+    type: 'line',
+    source: 'route-heat',
+    paint: {
+      'line-color': ['match', ['get', 'tier'], 'over', '#ef4444', 'warn', '#eab308', '#22c55e'],
+      'line-width': 4,
+      'line-opacity': 0.9,
+    },
+  });
+
+  // Speed tooltip on hover
+  const tooltip = document.getElementById('speed-tooltip');
+  map.on('mousemove', 'route-heat-line', e => {
+    if (!e.features.length) return;
+    const props = e.features[0].properties;
+    tooltip.style.display = 'block';
+    tooltip.textContent = `${props.speed} km/h · limit ${props.limit} km/h`;
+  });
+  map.on('mouseleave', 'route-heat-line', () => { tooltip.style.display = 'none'; });
+
+  // Start / end markers
+  new maplibregl.Marker({ color: '#065f46' }).setLngLat([pings[0].lon, pings[0].lat]).addTo(map);
+  new maplibregl.Marker({ color: '#dc2626' }).setLngLat([pings[pings.length-1].lon, pings[pings.length-1].lat]).addTo(map);
+
+  // Animated marker
+  const el = document.createElement('div');
+  el.style.cssText = 'cursor:pointer;filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))';
+  el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="26" viewBox="0 0 18 26" style="display:block">
+    <rect x="2" y="4" width="14" height="18" rx="4" fill="#8A2BE2" stroke="#fff" stroke-width="1.5"/>
+    <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
+    <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
+    <rect x="5" y="2" width="8" height="3" rx="2" fill="#8A2BE2" opacity=".7"/>
+    <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="15.5" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+  </svg>`;
+  const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([pings[0].lon, pings[0].lat]).addTo(map);
+
+  // Fit bounds
+  const coords = pings.map(p => [p.lon, p.lat]);
+  const bounds = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
+  map.fitBounds(bounds, { padding: 60, duration: 800 });
+
+  const scrubber = document.getElementById('scrubber');
+  scrubber.max = pings.length - 1;
+  if (pings[0].ts)
+    document.getElementById('rf-time-start').textContent = new Date(pings[0].ts).toLocaleTimeString('en-ZA');
+  if (pings[pings.length - 1].ts)
+    document.getElementById('rf-time-end').textContent = new Date(pings[pings.length - 1].ts).toLocaleTimeString('en-ZA');
+
+  function seekTo(idx) {
+    currentIdx = Math.max(0, Math.min(idx, pings.length - 1));
+    const p = pings[currentIdx];
+    marker.setLngLat([p.lon, p.lat]);
+    if (p.heading != null) marker.setRotation(p.heading);
+    pod.update(p);
+    document.getElementById('info-speed').textContent = p.speed_kmh != null ? `${Math.round(p.speed_kmh)} km/h` : '—';
+    document.getElementById('info-time').textContent  = p.ts ? new Date(p.ts).toLocaleTimeString('en-ZA') : '—';
+    document.getElementById('info-dist').textContent  = `${cumDist[currentIdx].toFixed(2)} km`;
+    scrubber.value = currentIdx;
+    document.getElementById('scrubber-label').textContent = `${currentIdx + 1} / ${pings.length}`;
+  }
+
+  function tick() {
+    if (currentIdx >= pings.length - 1) { stopPlay(); return; }
+    seekTo(currentIdx + 1);
+    const mult = parseInt(document.getElementById('speed-select').value) || 5;
+    timer = setTimeout(tick, Math.max(30, 1000 / mult));
+  }
+
+  function startPlay() {
+    playing = true;
+    document.getElementById('btn-play').textContent = '⏸ Pause';
+    tick();
+  }
+
+  function stopPlay() {
+    playing = false;
+    clearTimeout(timer);
+    document.getElementById('btn-play').textContent = '▶ Play';
+  }
+
+  document.getElementById('btn-play').onclick = () => playing ? stopPlay() : startPlay();
+  scrubber.oninput = e => { stopPlay(); seekTo(parseInt(e.target.value)); };
+
+  seekTo(0);
+});
+</script>
+{% endblock %}

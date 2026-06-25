@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Report Schedules{% endblock %}
+{% block page_title %}Report Schedules{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'reporting-home' %}" class="btn btn-ghost btn-sm">← Reporting</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start">
+
+    <div>
+      <h2 style="font-size:1rem;font-weight:700;margin-bottom:12px">Active Schedules</h2>
+      {% if schedules %}
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="data-table">
+          <thead>
+            <tr><th>Template</th><th>Frequency</th><th>Recipients</th><th>Last Run</th><th>Next Run</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for s in schedules %}
+            <tr>
+              <td style="font-weight:600">{{ s.template.name }}</td>
+              <td>{{ s.get_frequency_display }}</td>
+              <td style="font-size:0.8rem;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ s.recipients }}">
+                {{ s.recipients|truncatechars:40 }}
+              </td>
+              <td style="font-size:0.82rem;color:var(--text-muted)">
+                {% if s.last_run_at %}{{ s.last_run_at|timesince }} ago{% else %}Never{% endif %}
+              </td>
+              <td style="font-size:0.82rem;color:var(--text-muted)">
+                {% if s.next_run_at %}{{ s.next_run_at|date:"d M H:i" }}{% else %}—{% endif %}
+              </td>
+              <td>
+                <form method="post" action="{% url 'reporting-schedule-delete' s.pk %}" style="margin:0" onsubmit="return confirm('Delete this schedule?')">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card" style="text-align:center;padding:40px;color:var(--text-muted)">No schedules yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:1rem;font-weight:700;margin-bottom:16px">New Schedule</h2>
+      {% if not templates %}
+      <p style="color:var(--text-muted);font-size:0.88rem">
+        Save a report template first before creating a schedule.
+        <a href="{% url 'reporting-custom-builder' %}">Open builder →</a>
+      </p>
+      {% else %}
+      <form method="post" action="{% url 'reporting-schedule-create' %}">
+        {% csrf_token %}
+        <div class="form-group">
+          <label>Template</label>
+          <select name="template" class="form-control" required>
+            <option value="">— choose —</option>
+            {% for tpl in templates %}
+            <option value="{{ tpl.pk }}">{{ tpl.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Frequency</label>
+          <select name="frequency" class="form-control" required>
+            {% for val, label in frequencies %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Recipients (comma-separated)</label>
+          <input type="text" name="recipients" class="form-control" placeholder="fleet@example.com, ops@example.com" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Create Schedule</button>
+      </form>
+      {% endif %}
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

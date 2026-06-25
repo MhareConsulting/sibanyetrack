@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Webhooks — myTrack{% endblock %}
+{% block page_title %}Webhooks{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;flex-wrap:wrap">
+
+    <!-- Active endpoints -->
+    <div>
+      <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:12px">Active Endpoints</h3>
+      {% for ep in endpoints %}
+      <div class="card" style="padding:16px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div style="min-width:0">
+            <div style="font-weight:600;font-size:0.88rem;word-break:break-all">{{ ep.url }}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">
+              Events: {{ ep.events|join:", "|default:"(none)" }}
+            </div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">
+              Secret: <code style="font-size:0.7rem">{{ ep.secret|truncatechars:12 }}…</code>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <form method="post" action="{% url 'webhook-toggle' ep.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="{% if not ep.is_active %}color:var(--text-muted){% endif %}">
+                {% if ep.is_active %}Disable{% else %}Enable{% endif %}
+              </button>
+            </form>
+            <form method="post" action="{% url 'webhook-delete' ep.pk %}" onsubmit="return confirm('Delete this webhook?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">Delete</button>
+            </form>
+          </div>
+        </div>
+        {% if not ep.is_active %}
+        <div style="margin-top:8px"><span class="badge badge-expired">disabled</span></div>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div class="card" style="padding:24px;text-align:center;color:var(--text-muted)">No webhook endpoints configured.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Add new endpoint -->
+    <div>
+      <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:12px">Add Endpoint</h3>
+      <div class="card" style="padding:20px">
+        <form method="post" action="{% url 'webhook-create' %}">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>URL <span style="color:#dc2626">*</span></label>
+            <input type="url" name="url" class="form-control" placeholder="https://your-server.com/webhook" required>
+          </div>
+          <div class="form-group">
+            <label>Subscribe to events</label>
+            {% for ev in known_events %}
+            <div style="margin-bottom:6px">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+                <input type="checkbox" name="events" value="{{ ev }}" checked>
+                <span style="font-size:0.88rem">{{ ev }}</span>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-primary">Add Endpoint</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent deliveries -->
+  <h3 style="font-size:0.95rem;font-weight:700;margin-top:32px;margin-bottom:12px">Recent Deliveries</h3>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr><th>When</th><th>Event</th><th>Endpoint</th><th>Status</th><th>Attempts</th></tr>
+      </thead>
+      <tbody>
+        {% for d in recent_deliveries %}
+        <tr>
+          <td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">{{ d.created_at|timesince }} ago</td>
+          <td style="font-size:0.82rem"><code>{{ d.event_type }}</code></td>
+          <td style="font-size:0.78rem;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.endpoint.url }}</td>
+          <td>
+            {% if d.delivered_at %}
+            <span class="badge badge-ok">{{ d.status_code }}</span>
+            {% elif d.attempts >= 3 %}
+            <span class="badge badge-expired">dead-letter</span>
+            {% else %}
+            <span class="badge badge-unknown">pending</span>
+            {% endif %}
+          </td>
+          <td style="font-size:0.82rem">{{ d.attempts }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted)">No deliveries yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Vehicles — myTrack{% endblock %}
+{% block page_title %}Vehicles{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'warning' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if vehicles %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Registration</th>
+          <th>Label</th>
+          <th>Depot</th>
+          <th>Last Driver</th>
+          <th>Fuel</th>
+          <th>Speed</th>
+          <th>Last Seen</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vehicles %}
+        <tr>
+          <td style="font-weight:700;font-family:monospace;font-size:0.82rem">{{ v.registration }}</td>
+          <td style="color:var(--text-muted)">{{ v.label|default:"—" }}</td>
+          <td>
+            {% if v.home_depot %}
+              <a href="{% url 'depot-detail' v.home_depot.pk %}"
+                 style="color:var(--mh-purple);text-decoration:none;font-weight:500;font-size:0.82rem">
+                {{ v.home_depot.name }}
+              </a>
+            {% else %}
+              <span style="color:var(--text-soft)">No depot</span>
+            {% endif %}
+          </td>
+          <td>{% if v.state %}{{ v.state.driver_name|default:"—" }}{% else %}<span style="color:var(--text-soft)">—</span>{% endif %}</td>
+          <td>
+            {% if v.latest_fuel_litres is not None and v.fuel_tank_capacity_litres %}
+              {% widthratio v.latest_fuel_litres v.fuel_tank_capacity_litres 100 as fuel_pct %}
+              <div style="display:flex;align-items:center;gap:6px;min-width:80px">
+                <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:{{ fuel_pct }}%;background:{% if fuel_pct|add:0 < 20 %}#ef4444{% elif fuel_pct|add:0 < 40 %}#f97316{% else %}#22c55e{% endif %};border-radius:3px"></div>
+                </div>
+                <span style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">{{ fuel_pct }}%</span>
+              </div>
+            {% else %}
+              <span style="color:var(--text-soft)">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if v.state and v.state.speed_kmh is not None %}
+              {{ v.state.speed_kmh|floatformat:0 }} km/h
+            {% else %}<span style="color:var(--text-soft)">—</span>{% endif %}
+          </td>
+          <td>
+            {% if v.state %}
+              <span style="color:var(--text-muted);font-size:0.82rem">{{ v.state.last_seen|timesince }} ago</span>
+            {% else %}<span style="color:var(--text-soft)">Never</span>{% endif %}
+          </td>
+          <td style="text-align:right;padding-right:16px">
+            <a href="{% url 'vehicle-edit' v.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:64px 24px;color:var(--text-muted)">
+    <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;opacity:.35"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 17H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v6m-8 4h8m-4-4v4m-8 0h.01M17 17h.01"/></svg>
+    <p style="font-weight:600;color:var(--mh-ink);margin-bottom:4px">No vehicles in your depots yet</p>
+    <p style="font-size:0.84rem">Vehicles appear here once they have a home depot assigned.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

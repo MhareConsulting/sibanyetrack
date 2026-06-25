@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Organisation Settings{% endblock %}
+{% block page_title %}Organisation Settings{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Settings</div>
+      <h1>Organisation Settings</h1>
+      <p>Fuel configuration and scheduled email notifications for your organisation.</p>
+    </div>
+  </div>
+
+  <div class="card" style="max-width:520px;">
+    <h2 style="font-size:1.1rem;margin:0 0 12px">Fuel</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_fuel_price_zar">Fuel price per litre (R)</label>
+        {{ form.fuel_price_zar }}
+        {% if form.fuel_price_zar.errors %}
+        <div class="alert alert-danger" style="margin-top:6px;">{{ form.fuel_price_zar.errors.as_text }}</div>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_idle_burn_rate_lph">Idle burn rate (litres/hour)</label>
+        {{ form.idle_burn_rate_lph }}
+        {% if form.idle_burn_rate_lph.errors %}
+        <div class="alert alert-danger" style="margin-top:6px;">{{ form.idle_burn_rate_lph.errors.as_text }}</div>
+        {% endif %}
+      </div>
+
+      <h2 style="font-size:1.1rem;margin:24px 0 12px">Scheduled emails</h2>
+      <p style="font-size:0.88rem;color:#64748b;margin:0 0 16px">
+        When to send is configured outside myTrack (for example GitHub Actions calling your site’s
+        <code style="font-size:0.85em">/api/cron/email-jobs/</code> endpoint). See the deployment handover for details.
+        Admin and dispatcher users with an email address receive these messages; optional CCs are added below.
+      </p>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        {{ form.email_daily_digest_enabled }}
+        <label for="id_email_daily_digest_enabled" style="margin:0;font-weight:500">{{ form.email_daily_digest_enabled.label }}</label>
+      </div>
+      {% if form.email_daily_digest_enabled.errors %}
+      <div class="alert alert-danger" style="margin-top:6px;">{{ form.email_daily_digest_enabled.errors.as_text }}</div>
+      {% endif %}
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+        {{ form.email_weekly_summary_enabled }}
+        <label for="id_email_weekly_summary_enabled" style="margin:0;font-weight:500">{{ form.email_weekly_summary_enabled.label }}</label>
+      </div>
+      {% if form.email_weekly_summary_enabled.errors %}
+      <div class="alert alert-danger" style="margin-top:6px;">{{ form.email_weekly_summary_enabled.errors.as_text }}</div>
+      {% endif %}
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+        {{ form.email_monthly_summary_enabled }}
+        <label for="id_email_monthly_summary_enabled" style="margin:0;font-weight:500">{{ form.email_monthly_summary_enabled.label }}</label>
+      </div>
+      {% if form.email_monthly_summary_enabled.errors %}
+      <div class="alert alert-danger" style="margin-top:6px;">{{ form.email_monthly_summary_enabled.errors.as_text }}</div>
+      {% endif %}
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+        {{ form.email_expiry_warnings_enabled }}
+        <label for="id_email_expiry_warnings_enabled" style="margin:0;font-weight:500">{{ form.email_expiry_warnings_enabled.label }}</label>
+      </div>
+      {% if form.email_expiry_warnings_enabled.errors %}
+      <div class="alert alert-danger" style="margin-top:6px;">{{ form.email_expiry_warnings_enabled.errors.as_text }}</div>
+      {% endif %}
+      <div class="form-group" style="margin-top:14px">
+        <label for="id_notification_cc_emails">{{ form.notification_cc_emails.label }}</label>
+        {{ form.notification_cc_emails }}
+        {% if form.notification_cc_emails.help_text %}
+        <p style="font-size:0.82rem;color:#64748b;margin:6px 0 0">{{ form.notification_cc_emails.help_text }}</p>
+        {% endif %}
+        {% if form.notification_cc_emails.errors %}
+        <div class="alert alert-danger" style="margin-top:6px;">{{ form.notification_cc_emails.errors.as_text }}</div>
+        {% endif %}
+      </div>
+
+      <h2 style="font-size:1.1rem;margin:24px 0 12px">WhatsApp driver alerts</h2>
+      <p style="font-size:0.88rem;color:#64748b;margin:0 0 16px">
+        When enabled, drivers receive an instant WhatsApp message on their registered phone number
+        when a critical alert, speeding event, geofence violation, or inspection failure is triggered.
+        Requires a phone number to be set on the driver profile.
+      </p>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        {{ form.whatsapp_driver_notify_enabled }}
+        <label for="id_whatsapp_driver_notify_enabled" style="margin:0;font-weight:500">{{ form.whatsapp_driver_notify_enabled.label }}</label>
+      </div>
+      {% if form.whatsapp_driver_notify_enabled.errors %}
+      <div class="alert alert-danger" style="margin-top:6px;">{{ form.whatsapp_driver_notify_enabled.errors.as_text }}</div>
+      {% endif %}
+      <p style="font-size:0.82rem;color:#64748b;margin:6px 0 0">{{ form.whatsapp_driver_notify_enabled.help_text }}</p>
+
+      <button type="submit" class="btn btn-primary" style="margin-top:8px">Save settings</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Fuel Price History — myTrack{% endblock %}
+{% block page_title %}Fuel Price History{% endblock %}
+
+{% block topbar_actions %}
+<form method="post" action="{% url 'fuel-fetch-prices' %}" style="display:inline">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-primary btn-sm">Fetch from AA now</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  {% if messages %}
+  {% for msg in messages %}
+  <div class="alert {% if msg.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}" style="margin-bottom:16px">
+    {{ msg }}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- Manual entry form -->
+  <div class="card" style="margin-bottom:24px">
+    <h3 style="margin:0 0 16px;font-size:0.95rem;font-weight:700">Add / Update Manual Entry</h3>
+    <form method="post" action="{% url 'fuel-price-add' %}">
+      {% csrf_token %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;align-items:end">
+        <div class="form-group" style="margin:0">
+          <label>Effective from <span style="color:#dc2626">*</span></label>
+          <input type="date" name="effective_from" class="form-control" required>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Petrol 95 (R/L)</label>
+          <input type="number" name="petrol_95_zar" class="form-control" step="0.001" min="0" placeholder="e.g. 22.540">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Petrol 93 (R/L)</label>
+          <input type="number" name="petrol_93_zar" class="form-control" step="0.001" min="0" placeholder="e.g. 22.030">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Diesel 500ppm (R/L)</label>
+          <input type="number" name="diesel_500ppm_zar" class="form-control" step="0.001" min="0" placeholder="e.g. 21.870">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Diesel 50ppm (R/L)</label>
+          <input type="number" name="diesel_50ppm_zar" class="form-control" step="0.001" min="0" placeholder="e.g. 21.990">
+        </div>
+        <div style="padding-bottom:1px">
+          <button type="submit" class="btn btn-primary" style="width:100%">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Price history table -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Effective From</th>
+          <th>Petrol 95</th>
+          <th>Petrol 93</th>
+          <th>Diesel 500ppm</th>
+          <th>Diesel 50ppm</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td style="font-weight:600">{{ r.effective_from|date:"d M Y" }}</td>
+          <td>{% if r.petrol_95_zar %}R {{ r.petrol_95_zar }}{% else %}—{% endif %}</td>
+          <td>{% if r.petrol_93_zar %}R {{ r.petrol_93_zar }}{% else %}—{% endif %}</td>
+          <td>{% if r.diesel_500ppm_zar %}R {{ r.diesel_500ppm_zar }}{% else %}—{% endif %}</td>
+          <td>{% if r.diesel_50ppm_zar %}R {{ r.diesel_50ppm_zar }}{% else %}—{% endif %}</td>
+          <td style="font-size:0.78rem;color:var(--text-muted)">{{ r.source }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">
+            No price history yet — click "Fetch from AA now" or add an entry manually.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

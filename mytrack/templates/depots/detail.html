@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}{{ depot.name }} — myTrack{% endblock %}
+{% block page_title %}{{ depot.name }}{% endblock %}
+
+{% block topbar_actions %}
+{% if is_admin %}
+<a href="{% url 'depot-edit' depot.pk %}" class="btn btn-ghost btn-sm">Edit depot</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'warning' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Stats row -->
+  <div class="stat-grid" style="margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-label">Home Vehicles</div>
+      <div class="stat-value">{{ home_vehicles|length }}</div>
+      <div class="stat-sublabel">assigned to this depot</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Assignments</div>
+      <div class="stat-value">{{ active_assignments|length }}</div>
+      <div class="stat-sublabel">borrows &amp; transfers in</div>
+    </div>
+    {% if depot.open_time and depot.close_time %}
+    <div class="stat-card">
+      <div class="stat-label">Operating Hours</div>
+      <div class="stat-value" style="font-size:1.3rem">{{ depot.open_time|time:"H:i" }}</div>
+      <div class="stat-sublabel">until {{ depot.close_time|time:"H:i" }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
+
+    <!-- Left: vehicle tables -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- Home vehicles -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="card-header" style="padding:16px 20px 0">
+          <div>
+            <div class="card-title">Home Vehicles</div>
+            <div class="card-subtitle">Permanently based at {{ depot.name }}</div>
+          </div>
+        </div>
+        {% if home_vehicles %}
+        <table class="data-table" style="margin-top:12px">
+          <thead>
+            <tr>
+              <th>Registration</th>
+              <th>Label</th>
+              <th>Status</th>
+              <th>Last Seen</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in home_vehicles %}
+            <tr>
+              <td style="font-weight:700;font-family:monospace;font-size:0.82rem">{{ v.registration }}</td>
+              <td style="color:var(--text-muted)">{{ v.label|default:"—" }}</td>
+              <td>
+                {% if v.state %}
+                  {% with mins=v.state.last_seen|timesince %}
+                  <span class="status-dot {% if 'minute' in mins and mins|slice:":2"|add:0 < 10 %}dot-online{% elif 'hour' not in mins and 'day' not in mins %}dot-stale{% else %}dot-offline{% endif %}"></span>
+                  {% endwith %}
+                {% else %}
+                  <span class="status-dot dot-offline"></span>
+                {% endif %}
+              </td>
+              <td style="color:var(--text-muted);font-size:0.82rem">
+                {% if v.state %}{{ v.state.last_seen|timesince }} ago{% else %}Never{% endif %}
+              </td>
+              <td style="text-align:right;padding-right:16px">
+                <a href="{% url 'vehicle-edit' v.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div style="padding:32px 20px;text-align:center;color:var(--text-muted);font-size:0.88rem">
+          No home vehicles yet — use the form to transfer vehicles here.
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Active assignments (borrows/transfers in) -->
+      {% if active_assignments %}
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="card-header" style="padding:16px 20px 0">
+          <div>
+            <div class="card-title">Active Assignments</div>
+            <div class="card-subtitle">Vehicles currently borrowed or transferred in</div>
+          </div>
+        </div>
+        <table class="data-table" style="margin-top:12px">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Type</th>
+              <th>Since</th>
+              <th>Until</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in active_assignments %}
+            <tr>
+              <td style="font-weight:700;font-family:monospace;font-size:0.82rem">{{ a.vehicle.registration }}</td>
+              <td>
+                <span class="badge {% if a.kind == 'borrow' %}badge-warning{% else %}badge-ok{% endif %}">
+                  {{ a.get_kind_display }}
+                </span>
+              </td>
+              <td style="color:var(--text-muted);font-size:0.82rem">{{ a.start_date|date:"d M Y" }}</td>
+              <td style="color:var(--text-muted);font-size:0.82rem">
+                {% if a.end_date %}{{ a.end_date|date:"d M Y" }}{% else %}<span style="color:var(--text-soft)">Open</span>{% endif %}
+              </td>
+              <td style="color:var(--text-muted);font-size:0.82rem">{{ a.notes|default:"—" }}</td>
+              <td style="text-align:right;padding-right:16px">
+                <form method="post" action="{% url 'assignment-end' a.pk %}" style="display:inline"
+                      onsubmit="return confirm('End this assignment today?')">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">End</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Right: assign vehicle panel -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:4px">Assign a Vehicle</div>
+      <div class="card-subtitle" style="margin-bottom:16px">Borrow (temporary) or transfer (permanent home)</div>
+
+      <form method="post" action="{% url 'depot-assign' depot.pk %}" novalidate>
+        {% csrf_token %}
+        {{ assign_form.depot }}
+
+        <div class="form-group">
+          <label>Vehicle</label>
+          <select name="vehicle" class="form-control" required>
+            <option value="">— select vehicle —</option>
+            {% for v in assign_form.fields.vehicle.queryset %}
+            <option value="{{ v.pk }}">{{ v.registration }}{% if v.label %} · {{ v.label }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Type</label>
+          <select name="kind" class="form-control" required>
+            <option value="borrow">Borrow (temporary)</option>
+            <option value="transfer">Transfer (new home depot)</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label>From date</label>
+            <input type="date" name="start_date" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+          </div>
+          <div class="form-group">
+            <label>Return date <span style="color:var(--text-soft);font-weight:400">(optional)</span></label>
+            <input type="date" name="end_date" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes <span style="color:var(--text-soft);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" class="form-control" placeholder="e.g. covering breakdown">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%">Assign Vehicle</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

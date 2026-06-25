@@ -1,0 +1,121 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% block title %}Map view — myTrack{% endblock %}
+{% block header_title %}Map view{% endblock %}
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="m-map-wrap" style="flex:1">
+  <div id="map-page" class="m-map"></div>
+  <div class="m-map-fabs">
+    <button type="button" class="m-fab" id="fab-fullscreen" title="Fit all">⛶</button>
+    <button type="button" class="m-fab" data-zoom="in">+</button>
+    <button type="button" class="m-fab" data-zoom="out">−</button>
+    <button type="button" class="m-fab" id="fab-layers" title="Map style">▦</button>
+    <button type="button" class="m-fab" id="fab-locate" title="Locate">⌖</button>
+  </div>
+</div>
+<div class="m-carousel" id="map-carousel"></div>
+
+<div class="m-sheet" id="asset-sheet">
+  <div class="m-sheet-handle"></div>
+  <div class="m-sheet-head">
+    <span class="m-chip-icon" id="sheet-car-icon"></span>
+    <div>
+      <div style="font-weight:800;font-size:1.1rem" id="sheet-reg">—</div>
+    </div>
+    <button type="button" class="m-sheet-close" id="sheet-close">×</button>
+  </div>
+  <div class="m-sheet-body">
+    <div class="m-stat-row"><span id="sheet-ignition">—</span><span id="sheet-speed">—</span></div>
+    <p style="font-size:0.85rem"><strong>Last location</strong><br><span id="sheet-address">—</span></p>
+    <p style="font-size:0.82rem;color:var(--muted)">Last update: <span id="sheet-seen">—</span></p>
+    <div class="m-stat-row">
+      <span>Health: <span id="sheet-health">—</span></span>
+      <span>Odo: <span id="sheet-odo">—</span> km</span>
+    </div>
+    <div class="m-sheet-links">
+      <a href="#" id="sheet-trips">View trips</a>
+      <a href="{% url 'alert-list' %}">Set up alerts</a>
+      <a href="{% url 'vehicle-list' %}">Manage asset</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script src="{% static 'mobile/live.js' %}"></script>
+<script src="{% static 'mobile/map.js' %}"></script>
+<script>
+(function() {
+  let vehicles = [];
+  const sheet = document.getElementById("asset-sheet");
+  const carousel = document.getElementById("map-carousel");
+
+  function openSheet(id) {
+    MyTrackMobile.api(`/vehicles/${id}/`).then(d => {
+      document.getElementById("sheet-car-icon").innerHTML = MyTrackMobile.vehicleIconHtml();
+      document.getElementById("sheet-reg").textContent = d.registration;
+      document.getElementById("sheet-ignition").textContent = d.ignition_on ? "Ignition on" : "Ignition off";
+      document.getElementById("sheet-speed").textContent = (d.speed_kmh != null ? d.speed_kmh : 0) + " km/h";
+      document.getElementById("sheet-address").textContent = d.last_address || "—";
+      document.getElementById("sheet-seen").textContent = MyTrackMobile.formatDt(d.last_seen);
+      document.getElementById("sheet-health").textContent = d.health.status;
+      document.getElementById("sheet-odo").textContent = d.odometer_km != null ? d.odometer_km : "—";
+      document.getElementById("sheet-trips").href = `/app/trips/?vehicle=${d.id}`;
+      sheet.classList.add("open");
+    });
+  }
+
+  function renderCarousel() {
+    carousel.innerHTML = vehicles.map(v => `
+      <div class="m-asset-card" data-id="${v.id}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span class="m-chip-icon">${MyTrackMobile.vehicleIconHtml()}</span>
+          <strong>${v.registration || v.reg || "Vehicle"}</strong>
+          ${v.parked ? '<span style="font-weight:700">P</span>' : ''}
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted)">📍 ${v.last_address || v.address || "No address"}</div>
+      </div>`).join("");
+    carousel.querySelectorAll(".m-asset-card").forEach(card => {
+      card.addEventListener("click", () => {
+        const id = parseInt(card.dataset.id, 10);
+        MyTrackMobile.selectedVehicleId = id;
+        MyTrackMap.updateVehicles(vehicles, id);
+        openSheet(id);
+      });
+    });
+  }
+
+  document.getElementById("sheet-close").addEventListener("click", () => sheet.classList.remove("open"));
+  document.getElementById("fab-locate").addEventListener("click", () => MyTrackMap.locateUser());
+  document.getElementById("fab-layers").addEventListener("click", () => {
+    MyTrackMap.styleKey = MyTrackMap.styleKey === "street" ? "satellite" : "street";
+    MyTrackMap.setStyle(MyTrackMap.styleKey);
+  });
+  document.getElementById("fab-fullscreen").addEventListener("click", () => MyTrackMap.updateVehicles(vehicles, null));
+  document.querySelectorAll("[data-zoom]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const z = MyTrackMap.map.getZoom();
+      MyTrackMap.map.zoomTo(btn.dataset.zoom === "in" ? z + 1 : z - 1);
+    });
+  });
+
+  MyTrackMap.init("map-page");
+  MyTrackLive.start();
+  MyTrackLive.onUpdate(v => {
+    vehicles = v;
+    renderCarousel();
+    MyTrackMap.updateVehicles(v, MyTrackMobile.selectedVehicleId);
+  });
+
+  const urlV = new URLSearchParams(location.search).get("vehicle");
+  if (urlV) {
+    MyTrackMobile.selectedVehicleId = parseInt(urlV, 10);
+    document.addEventListener("mytrack:bootstrap", () => openSheet(parseInt(urlV, 10)), { once: true });
+    setTimeout(() => { if (vehicles.length) openSheet(parseInt(urlV, 10)); }, 2000);
+  }
+})();
+</script>
+{% endblock %}

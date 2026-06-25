@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Service Schedules — myTrack{% endblock %}
+{% block page_title %}Service Schedules{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'service-create' %}" class="btn btn-primary btn-sm">+ Add Schedule</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.remaining-km {
+  font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em;
+}
+.remaining-overdue { color: #dc2626; }
+.remaining-warning { color: #d97706; }
+.remaining-ok      { color: #059669; }
+.remaining-unknown { color: var(--text-muted); }
+@media (max-width: 640px) {
+  .svc-hide-mobile { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <!-- Stat strip -->
+  <div class="stat-grid" style="margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-label">Total Schedules</div>
+      <div class="stat-value">{{ rows|length }}</div>
+    </div>
+    {% if overdue_count %}
+    <div class="stat-card" style="--accent:#dc2626">
+      <div class="stat-label" style="color:#dc2626">Overdue</div>
+      <div class="stat-value" style="color:#dc2626">{{ overdue_count }}</div>
+      <div class="stat-sublabel">Require immediate attention</div>
+    </div>
+    {% endif %}
+    {% if warning_count %}
+    <div class="stat-card">
+      <div class="stat-label" style="color:#d97706">Due Soon</div>
+      <div class="stat-value" style="color:#d97706">{{ warning_count }}</div>
+      <div class="stat-sublabel">Within 1 500 km</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if rows %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Service</th>
+          <th class="svc-hide-mobile">Every</th>
+          <th class="svc-hide-mobile">Last Done</th>
+          <th class="svc-hide-mobile">Current Odo</th>
+          <th class="svc-hide-mobile">Due At (km)</th>
+          <th class="svc-hide-mobile">Due Date</th>
+          <th>Remaining</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% with s=row.schedule %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ s.vehicle.registration }}</td>
+          <td>
+            <div style="font-weight:500;color:var(--mh-ink)">{{ s.name }}</div>
+            {% if s.notes %}<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">{{ s.notes|truncatechars:60 }}</div>{% endif %}
+          </td>
+          <td class="svc-hide-mobile" style="color:var(--text-muted)">{{ s.interval_km|floatformat:0 }} km</td>
+          <td class="svc-hide-mobile" style="color:var(--text-muted)">
+            {% if s.last_service_km %}
+              {{ s.last_service_km|floatformat:0 }} km
+              {% if s.last_service_date %}<div style="font-size:0.75rem">{{ s.last_service_date|date:"d M Y" }}</div>{% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="svc-hide-mobile" style="color:var(--text-muted)">
+            {% if row.current_odo %}{{ row.current_odo|floatformat:0 }} km{% else %}—{% endif %}
+          </td>
+          <td class="svc-hide-mobile" style="color:var(--text-muted)">
+            {% if s.next_due_km %}{{ s.next_due_km|floatformat:0 }} km{% else %}—{% endif %}
+          </td>
+          <td class="svc-hide-mobile" style="color:var(--text-muted)">
+            {% if s.next_due_date %}{{ s.next_due_date|date:"d M Y" }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if row.status == 'overdue' %}
+              <div class="remaining-km remaining-overdue">{{ row.abs_remaining|floatformat:0 }} km overdue</div>
+            {% elif row.status == 'warning' %}
+              <div class="remaining-km remaining-warning">{{ row.remaining|floatformat:0 }} km</div>
+              <div style="font-size:0.72rem;color:#d97706;margin-top:1px">Due soon</div>
+            {% elif row.status == 'ok' %}
+              <div class="remaining-km remaining-ok">{{ row.remaining|floatformat:0 }} km</div>
+            {% else %}
+              <span class="badge badge-unknown">No odo data</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;padding-right:14px;white-space:nowrap">
+            <a href="{% url 'service-mark-done' s.pk %}" class="btn btn-primary btn-sm" style="margin-right:4px">✓ Done</a>
+            <a href="{% url 'service-edit' s.pk %}" class="btn btn-ghost btn-sm" style="margin-right:4px">Edit</a>
+            <form method="post" action="{% url 'service-delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete this schedule?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="card" style="text-align:center;padding:64px 24px">
+    <div style="font-size:2rem;margin-bottom:12px">🔧</div>
+    <div style="font-weight:700;font-size:1rem;color:var(--mh-ink);margin-bottom:6px">No service schedules yet</div>
+    <div style="color:var(--text-muted);font-size:0.88rem;margin-bottom:20px">Add an interval-based schedule for any vehicle — oil changes, tyre rotations, major services.</div>
+    <a href="{% url 'service-create' %}" class="btn btn-primary">+ Add Schedule</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

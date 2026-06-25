@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Geofence Events — myTrack{% endblock %}
+{% block page_title %}Geofence Events{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{% url 'event-list' %}" class="btn btn-ghost btn-sm">Unified Events</a>
+  <a href="{% url 'reports-geofence-csv' %}?vehicle={{ vehicle_filter }}&geofence={{ geofence_filter }}&kind={{ kind_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    CSV
+  </a>
+  <a href="{% url 'reports-geofence-pdf' %}?vehicle={{ vehicle_filter }}&geofence={{ geofence_filter }}&kind={{ kind_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+    PDF
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Vehicle</label>
+      <select name="vehicle" class="form-control">
+        <option value="">All vehicles</option>
+        {% for v in vehicles %}
+        <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Geofence</label>
+      <select name="geofence" class="form-control">
+        <option value="">All geofences</option>
+        {% for gf in geofences %}
+        <option value="{{ gf.pk }}"{% if geofence_filter == gf.pk|stringformat:"s" %} selected{% endif %}>{{ gf.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:110px">
+      <label>Event</label>
+      <select name="kind" class="form-control">
+        <option value="">All events</option>
+        {% for val, label in kind_choices %}
+        <option value="{{ val }}"{% if kind_filter == val %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Date</label>
+      <input type="date" name="date" value="{{ date_filter }}" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if vehicle_filter or geofence_filter or kind_filter or date_filter %}
+    <a href="{% url 'geofence-event-list' %}" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Geofence</th>
+          <th>Vehicle</th>
+          <th>Driver</th>
+          <th>Event</th>
+          <th>Occurred At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in page_obj %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ ev.geofence.name }}</td>
+          <td style="font-weight:600">{{ ev.vehicle.registration }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ ev.driver_name|default:"—" }}</td>
+          <td>
+            {% if ev.kind == "enter" %}
+            <span class="badge badge-ok">Enter</span>
+            {% else %}
+            <span class="badge badge-warning">Exit</span>
+            {% endif %}
+          </td>
+          <td style="font-size:0.82rem">{{ ev.occurred_at|date:"d M Y H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">No geofence events recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&vehicle={{ vehicle_filter }}&geofence={{ geofence_filter }}&kind={{ kind_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&vehicle={{ vehicle_filter }}&geofence={{ geofence_filter }}&kind={{ kind_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

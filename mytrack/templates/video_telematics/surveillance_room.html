@@ -1,0 +1,1073 @@
+{% extends "base.html" %}
+{% block title %}Surveillance Room — MhareReach myTrack{% endblock %}
+{% block page_title %}Surveillance Room{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Dark room shell ──────────────────────────────────────────────────────── */
+.surv-room {
+  background: #0D0F14;
+  color: #E8EDF5;
+  display: grid;
+  grid-template-rows: 1fr 196px;
+  grid-template-columns: 240px 1fr 280px;
+  grid-template-areas:
+    "left stage sidebar"
+    "left grid  grid";
+  height: calc(100vh - var(--topbar-h, 60px));
+  overflow: hidden;
+}
+
+/* ── Left Rail ────────────────────────────────────────────────────────────── */
+.surv-left {
+  grid-area: left;
+  background: #161A22;
+  border-right: 1px solid #252A35;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.surv-left-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid #252A35;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.surv-left-head h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7A8499;
+  margin: 0;
+}
+.surv-alert-count {
+  background: #FF3B3B;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  min-width: 18px;
+  text-align: center;
+}
+.surv-alert-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #252A35 #161A22;
+}
+.no-alerts-msg {
+  color: #7A8499;
+  font-size: 0.78rem;
+  text-align: center;
+  margin-top: 24px;
+  padding: 0 8px;
+}
+.alert-card {
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid #252A35;
+  border-left-width: 3px;
+  cursor: pointer;
+  background: #1E2430;
+}
+.alert-card.sev-critical { border-left-color: #FF3B3B; }
+.alert-card.sev-warning  { border-left-color: #F5A623; }
+.alert-card.sev-info     { border-left-color: #2D9CDB; }
+.alert-card.is-staged    { outline: 1px solid #00C8FF; }
+.ac-kind    { font-size: 0.78rem; font-weight: 700; color: #E8EDF5; }
+.ac-vehicle { font-size: 0.72rem; color: #7A8499; margin-top: 2px; }
+.ac-detail  { font-size: 0.70rem; color: #7A8499; margin-top: 4px; }
+.ac-actions { display: flex; gap: 4px; margin-top: 8px; }
+.ac-btn {
+  border: 1px solid #252A35;
+  background: #0D0F14;
+  color: #E8EDF5;
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+.ac-btn:hover { background: #252A35; }
+
+@keyframes pulse-critical {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,59,59,0); }
+  50%     { box-shadow: 0 0 0 5px rgba(255,59,59,0.35); }
+}
+@keyframes pulse-warning {
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,0); }
+  50%     { box-shadow: 0 0 0 5px rgba(245,166,35,0.35); }
+}
+.new-critical { animation: pulse-critical 0.9s ease 3; }
+.new-warning  { animation: pulse-warning  0.9s ease 3; }
+
+/* ── Main Stage ───────────────────────────────────────────────────────────── */
+.surv-stage {
+  grid-area: stage;
+  display: flex;
+  flex-direction: column;
+  background: #0D0F14;
+  overflow: hidden;
+}
+.stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #252A35;
+  flex-shrink: 0;
+  background: #161A22;
+  gap: 10px;
+}
+.stage-header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.stage-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.stage-badge.sev-critical { background: rgba(255,59,59,0.18); color: #FF3B3B; }
+.stage-badge.sev-warning  { background: rgba(245,166,35,0.18); color: #F5A623; }
+.stage-badge.empty        { background: #252A35; color: #7A8499; }
+.stage-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #E8EDF5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.stage-btn {
+  border: 1px solid #252A35;
+  background: #0D0F14;
+  color: #E8EDF5;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stage-btn:hover { background: #252A35; }
+
+.stage-player {
+  flex: 1;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+.stage-player video,
+.stage-player img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.stage-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  color: #7A8499;
+}
+.stage-empty .empty-icon { font-size: 2.5rem; }
+.stage-empty p { font-size: 0.82rem; margin: 0; text-align: center; padding: 0 24px; }
+
+/* Telematics HUD */
+.stage-hud {
+  position: absolute;
+  bottom: 62px;
+  left: 10px;
+  background: rgba(13,15,20,0.88);
+  border: 1px solid #252A35;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 4px 10px;
+  font-size: 0.72rem;
+  pointer-events: none;
+}
+.hud-speed {
+  grid-column: 1 / -1;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.hud-speed.spd-ok      { color: #27AE60; }
+.hud-speed.spd-warning { color: #F5A623; }
+.hud-speed.spd-danger  { color: #FF3B3B; }
+.hud-label { color: #7A8499; align-self: center; }
+.hud-value { color: #E8EDF5; font-weight: 600; }
+.hud-stale { color: #F5A623; }
+
+/* Auto-switch banner */
+.stage-banner {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
+  background: rgba(220, 38, 38, 0.92);
+  color: #fff;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 10;
+}
+.stage-banner button {
+  border: 1px solid rgba(255,255,255,0.4);
+  background: transparent;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 0.70rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Action toolbar */
+.stage-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-top: 1px solid #252A35;
+  background: #161A22;
+  flex-shrink: 0;
+}
+.toolbar-btn {
+  border: 1px solid #252A35;
+  background: #0D0F14;
+  color: #E8EDF5;
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.toolbar-btn:hover { background: #252A35; }
+.toolbar-btn.tb-danger:hover { background: rgba(255,59,59,0.1); border-color: rgba(255,59,59,0.5); color: #FF3B3B; }
+.toolbar-btn.tb-audio-active { background: rgba(255,59,59,0.12); border-color: #FF3B3B; color: #FF3B3B; }
+.tb-spacer { flex: 1; }
+.rec-dot { color: #FF3B3B; font-size: 0.70rem; font-weight: 700; }
+
+/* ── Right Sidebar ────────────────────────────────────────────────────────── */
+.surv-sidebar {
+  grid-area: sidebar;
+  background: #161A22;
+  border-left: 1px solid #252A35;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.surv-sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid #252A35;
+  flex-shrink: 0;
+}
+.stab {
+  flex: 1;
+  padding: 9px 0;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7A8499;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.stab.active { color: #00C8FF; border-bottom-color: #00C8FF; }
+.sidebar-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: none;
+  scrollbar-width: thin;
+  scrollbar-color: #252A35 #161A22;
+}
+.sidebar-panel.active { display: block; }
+.sb-field { margin-bottom: 12px; }
+.sb-label { font-size: 0.66rem; color: #7A8499; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+.sb-value { font-size: 0.84rem; font-weight: 600; color: #E8EDF5; }
+.sb-empty { color: #7A8499; font-size: 0.78rem; text-align: center; margin-top: 28px; }
+
+/* ── Bottom Grid ──────────────────────────────────────────────────────────── */
+.surv-grid {
+  grid-area: grid;
+  background: #0D0F14;
+  border-top: 1px solid #252A35;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #252A35 #0D0F14;
+}
+.surv-grid::-webkit-scrollbar { height: 4px; }
+.surv-grid::-webkit-scrollbar-track { background: #0D0F14; }
+.surv-grid::-webkit-scrollbar-thumb { background: #252A35; border-radius: 2px; }
+.surv-grid-empty {
+  color: #7A8499;
+  font-size: 0.82rem;
+  padding: 20px;
+  align-self: center;
+}
+.grid-tile {
+  flex-shrink: 0;
+  width: 210px;
+  border-radius: 8px;
+  background: #161A22;
+  border: 1px solid #252A35;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.1s;
+  display: flex;
+  flex-direction: column;
+}
+.grid-tile:hover        { border-color: #00C8FF; transform: translateY(-1px); }
+.grid-tile.warn         { border-color: #F5A623; }
+.grid-tile.on-stage     { border-color: #00C8FF; opacity: 0.45; pointer-events: none; }
+.tile-thumb {
+  flex: 1;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+.tile-thumb video,
+.tile-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.th-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7A8499;
+  font-size: 0.70rem;
+}
+.tile-live-dot {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #27AE60;
+  box-shadow: 0 0 0 2px rgba(39,174,96,0.3);
+}
+.tile-info { padding: 5px 7px; flex-shrink: 0; }
+.tile-reg  { font-size: 0.74rem; font-weight: 700; color: #E8EDF5; }
+.tile-ch   { font-size: 0.66rem; color: #7A8499; }
+.tile-spd  { font-size: 0.66rem; color: #7A8499; }
+.tile-spd.ok      { color: #27AE60; }
+.tile-spd.warning { color: #F5A623; }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.surv-toast {
+  position: fixed;
+  bottom: 224px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #252A35;
+  color: #E8EDF5;
+  border: 1px solid #3A4150;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: none;
+  z-index: 400;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+/* ── Modals ───────────────────────────────────────────────────────────────── */
+.surv-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.surv-modal.open { display: flex; }
+.surv-modal-card {
+  background: #161A22;
+  border: 1px solid #252A35;
+  border-radius: 10px;
+  padding: 22px;
+  min-width: 320px;
+  max-width: 460px;
+  width: 100%;
+  color: #E8EDF5;
+}
+.surv-modal-card h3 { margin: 0 0 14px; font-size: 0.96rem; }
+.surv-modal-card .modal-meta { font-size: 0.80rem; color: #7A8499; margin: 0 0 14px; }
+.surv-modal-card .modal-meta strong { color: #E8EDF5; }
+.surv-modal-card label { font-size: 0.74rem; color: #7A8499; display: block; margin-bottom: 4px; margin-top: 8px; }
+.surv-modal-card select,
+.surv-modal-card textarea,
+.surv-modal-card input[type=text] {
+  width: 100%;
+  padding: 7px 10px;
+  background: #0D0F14;
+  border: 1px solid #252A35;
+  border-radius: 6px;
+  color: #E8EDF5;
+  font-size: 0.82rem;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.surv-modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.surv-modal-btns button { padding: 7px 16px; border-radius: 6px; font-size: 0.80rem; cursor: pointer; font-weight: 600; }
+.btn-confirm { background: #FF3B3B; border: none; color: #fff; }
+.btn-cancel  { background: transparent; border: 1px solid #252A35; color: #E8EDF5; }
+.btn-confirm:hover { background: #e02222; }
+.btn-cancel:hover  { background: #252A35; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .surv-room { grid-template-columns: 200px 1fr 0; }
+  .surv-sidebar { display: none; }
+}
+@media (max-width: 880px) {
+  .surv-room {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr 160px;
+    grid-template-areas: "stage" "stage" "grid";
+  }
+  .surv-left { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="surv-room" id="survRoom">
+
+  {# ── Left Rail: Alert Queue ────────────────────────────────────────────── #}
+  <div class="surv-left">
+    <div class="surv-left-head">
+      <h3>Alerts</h3>
+      <span class="surv-alert-count" id="alertCount" style="display:none">0</span>
+    </div>
+    <div class="surv-alert-list" id="alertList">
+      {% for a in recent_alerts %}
+      <div class="alert-card sev-{{ a.severity }}"
+           data-alert-id="{{ a.id }}"
+           data-vehicle-id="{{ a.vehicle_id }}"
+           data-severity="{{ a.severity }}">
+        <div class="ac-kind">{{ a.get_kind_display }}</div>
+        <div class="ac-vehicle">{{ a.vehicle.registration }}{% if a.driver_name %} · {{ a.driver_name }}{% endif %}</div>
+        <div class="ac-detail">{{ a.occurred_at|date:"H:i:s" }} · {{ a.value|floatformat:1 }}</div>
+        <div class="ac-actions">
+          <button class="ac-btn" onclick="viewAlertVehicle({{ a.vehicle_id }})">View</button>
+          <button class="ac-btn" onclick="dismissAlertCard({{ a.id }})">Dismiss</button>
+          {% if a.severity == 'critical' %}<button class="ac-btn" onclick="escalateAlert({{ a.id }})">Escalate</button>{% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="no-alerts-msg" id="noAlertsMsg">No active alerts</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Main Stage ───────────────────────────────────────────────────────── #}
+  <div class="surv-stage">
+    <div class="stage-header">
+      <div class="stage-header-left">
+        <span class="stage-badge empty" id="stageBadge">— LIVE</span>
+        <span class="stage-title" id="stageTitle">No feed selected</span>
+      </div>
+      <div class="stage-actions">
+        <button class="stage-btn" id="stageRevertBtn" style="display:none" onclick="revertStage()">↩ Revert</button>
+        <button class="stage-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+      </div>
+    </div>
+
+    <div class="stage-player" id="stagePlayer">
+      <div class="stage-empty" id="stageEmpty">
+        <div class="empty-icon">📷</div>
+        <p>Click a feed below to focus it here, or wait for a critical alert to auto-select one.</p>
+      </div>
+
+      <div class="stage-hud" id="stageHud" style="display:none">
+        <div class="hud-speed" id="hudSpeed">— km/h</div>
+        <div class="hud-label">Heading</div><div class="hud-value" id="hudHeading">—</div>
+        <div class="hud-label">Last GPS</div><div class="hud-value" id="hudLastSeen">—</div>
+        <div class="hud-label">Location</div><div class="hud-value" id="hudAddress" style="font-size:0.68rem">—</div>
+        <div class="hud-label">Driver</div><div class="hud-value" id="hudDriver">—</div>
+      </div>
+
+      <div class="stage-banner" id="stageBanner" style="display:none">
+        <span id="stageBannerText"></span>
+        <button onclick="hideBanner()">Revert</button>
+      </div>
+    </div>
+
+    <div class="stage-toolbar">
+      <button class="toolbar-btn" onclick="saveClip()" title="Capture a 30-second clip around the current moment">💾 Save Clip</button>
+      <button class="toolbar-btn" id="audioBtn" onclick="toggleAudio()">🎙 Two-Way Audio</button>
+      <button class="toolbar-btn tb-danger" onclick="openEmsModal()">📍 Dispatch Emergency</button>
+      <button class="toolbar-btn" onclick="openTagModal()">🏷 Tag Event</button>
+      <div class="tb-spacer"></div>
+      <span class="rec-dot" id="recIndicator" style="display:none">● SAVING</span>
+    </div>
+  </div>
+
+  {# ── Right Sidebar ─────────────────────────────────────────────────────── #}
+  <div class="surv-sidebar">
+    <div class="surv-sidebar-tabs">
+      <div class="stab active" onclick="switchTab(this,'driver')">Driver</div>
+      <div class="stab" onclick="switchTab(this,'trip')">Trip</div>
+      <div class="stab" onclick="switchTab(this,'history')">History</div>
+    </div>
+
+    <div class="sidebar-panel active" id="tab-driver">
+      <div class="sb-empty" id="sbDriverEmpty">Select a feed to see driver info.</div>
+      <div id="sbDriverContent" style="display:none">
+        <div class="sb-field"><div class="sb-label">Driver</div><div class="sb-value" id="sbDriver">—</div></div>
+        <div class="sb-field"><div class="sb-label">Vehicle</div><div class="sb-value" id="sbVehicle">—</div></div>
+        <div class="sb-field"><div class="sb-label">Channel</div><div class="sb-value" id="sbChannel">—</div></div>
+        <div class="sb-field"><div class="sb-label">Speed</div><div class="sb-value" id="sbSpeed">—</div></div>
+        <div class="sb-field"><div class="sb-label">Location</div><div class="sb-value" id="sbAddress" style="font-size:0.80rem">—</div></div>
+        <div class="sb-field"><div class="sb-label">Last GPS fix</div><div class="sb-value" id="sbLastSeen">—</div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-panel" id="tab-trip">
+      <div class="sb-empty">Live trip data shows here while a feed is active.</div>
+    </div>
+
+    <div class="sidebar-panel" id="tab-history">
+      <div class="sb-empty" id="sbHistoryEmpty">Select a feed to see clip history.</div>
+      <div id="sbHistoryList" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+
+  {# ── Bottom Grid ───────────────────────────────────────────────────────── #}
+  <div class="surv-grid" id="surveilGrid">
+    {% for row in rows %}
+    <div class="grid-tile {% if row.alert_count %}warn{% endif %}"
+         data-channel-id="{{ row.channel.pk }}"
+         data-stream-url="{{ row.channel.stream_url }}"
+         data-vehicle-id="{{ row.channel.vehicle_id }}"
+         data-reg="{{ row.channel.vehicle.registration }}"
+         data-channel-name="{{ row.channel.name }}"
+         onclick="promoteToMainStage({{ row.channel.pk }}, null)">
+      <div class="tile-thumb">
+        {% if row.channel.stream_url %}<div class="tile-live-dot"></div>{% endif %}
+        <div class="th-empty">{% if row.channel.stream_url %}Loading…{% else %}No stream{% endif %}</div>
+      </div>
+      <div class="tile-info">
+        <div class="tile-reg">{{ row.channel.vehicle.registration }}</div>
+        <div class="tile-ch">{{ row.channel.name }}</div>
+        <div class="tile-spd" id="tile-spd-{{ row.channel.vehicle_id }}">—</div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="surv-grid-empty">No camera channels configured for this depot.</div>
+    {% endfor %}
+  </div>
+
+</div>{# /surv-room #}
+
+{# ── EMS Dispatch Modal ────────────────────────────────────────────────────── #}
+<div class="surv-modal" id="emsModal">
+  <div class="surv-modal-card">
+    <h3>📍 Dispatch Emergency Services</h3>
+    <p class="modal-meta">Vehicle: <strong id="emsVehicle">—</strong></p>
+    <p class="modal-meta" style="margin-top:-10px">Location: <strong id="emsAddress">Unknown</strong></p>
+    <label>Service Type</label>
+    <select id="emsType">
+      <option value="EMS">EMS / Ambulance</option>
+      <option value="Police">Police</option>
+      <option value="Fire">Fire Brigade</option>
+      <option value="Tow">Tow Truck</option>
+    </select>
+    <label>Notes (optional)</label>
+    <textarea id="emsNotes" rows="2" placeholder="Additional context for responders…"></textarea>
+    <div class="surv-modal-btns">
+      <button class="btn-cancel" onclick="closeModal('emsModal')">Cancel</button>
+      <button class="btn-confirm" onclick="confirmEmsDispatch()">Confirm Dispatch</button>
+    </div>
+  </div>
+</div>
+
+{# ── Tag Event Modal ───────────────────────────────────────────────────────── #}
+<div class="surv-modal" id="tagModal">
+  <div class="surv-modal-card">
+    <h3>🏷 Tag Event</h3>
+    <label>Event Type</label>
+    <select id="tagType">
+      <option value="harsh_braking">Harsh Braking</option>
+      <option value="speeding">Speeding</option>
+      <option value="near_miss">Near Miss</option>
+      <option value="incident">Incident</option>
+      <option value="phone_use">Phone Use</option>
+      <option value="other">Other</option>
+    </select>
+    <label>Notes</label>
+    <textarea id="tagNotes" rows="3" placeholder="Describe what you observed…"></textarea>
+    <div class="surv-modal-btns">
+      <button class="btn-cancel" onclick="closeModal('tagModal')">Cancel</button>
+      <button class="btn-confirm" onclick="confirmTag()">Save Tag</button>
+    </div>
+  </div>
+</div>
+
+<div class="surv-toast" id="survToast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ── Data from server ──────────────────────────────────────────────────── */
+  var CHANNELS        = JSON.parse('{{ channels_json|escapejs }}');
+  var VEHICLE_CHANNELS = JSON.parse('{{ vehicle_channels_json|escapejs }}');
+  var INITIAL_ALERTS  = JSON.parse('{{ initial_alerts_json|escapejs }}');
+  var CSRF            = '{{ csrf_token }}';
+  var STREAM_URL      = '{% url "surveillance-stream" %}';
+  var SAVE_CLIP_URL   = '{% url "surveillance-save-clip" %}';
+
+  /* ── Runtime state ─────────────────────────────────────────────────────── */
+  var mainChannelId = null;
+  var prevChannelId = null;
+  var activeAlertId = null;
+  var hlsMain       = null;
+  var audioActive   = false;
+  var bannerTimer   = null;
+
+  var telemetry  = {};   // vehicle_id (string) → state object
+  var alertsById = {};   // alert id → alert object
+  var alertOrder = [];   // alert ids newest-first
+  var dismissed  = {};   // alert id → true
+
+  /* ── Populate state from server-rendered alerts ────────────────────────── */
+  INITIAL_ALERTS.forEach(function (a) {
+    alertsById[a.id] = a;
+    alertOrder.push(a.id);
+  });
+  syncAlertCount();
+
+  /* ── SSE ───────────────────────────────────────────────────────────────── */
+  var es = new EventSource(STREAM_URL);
+  es.addEventListener('surveillance', function (e) {
+    var data = JSON.parse(e.data);
+    if (data.states)  { handleStates(data.states); }
+    if (data.alerts)  { handleNewAlerts(data.alerts); }
+  });
+
+  /* ── Telematics ────────────────────────────────────────────────────────── */
+  function handleStates(states) {
+    states.forEach(function (s) {
+      telemetry[String(s.vehicle_id)] = s;
+      updateTileSpeed(s);
+    });
+    if (mainChannelId) {
+      var ch = CHANNELS[String(mainChannelId)];
+      if (ch) { updateHud(String(ch.vehicle_id)); }
+    }
+  }
+
+  function updateTileSpeed(s) {
+    var el = document.getElementById('tile-spd-' + s.vehicle_id);
+    if (!el) { return; }
+    var spd = s.speed_kmh != null ? Math.round(s.speed_kmh) : null;
+    el.textContent = spd != null ? spd + ' km/h' : '—';
+    el.className = 'tile-spd ' + (spd == null ? '' : spd > 80 ? 'warning' : 'ok');
+  }
+
+  function updateHud(vehicleId) {
+    var s = telemetry[vehicleId];
+    var speedEl    = document.getElementById('hudSpeed');
+    var headingEl  = document.getElementById('hudHeading');
+    var lastSeenEl = document.getElementById('hudLastSeen');
+    var addrEl     = document.getElementById('hudAddress');
+    var driverEl   = document.getElementById('hudDriver');
+
+    if (!s) {
+      speedEl.textContent = '— km/h';
+      speedEl.className = 'hud-speed';
+      return;
+    }
+    var spd = s.speed_kmh != null ? Math.round(s.speed_kmh) : null;
+    speedEl.textContent = spd != null ? spd + ' km/h' : '— km/h';
+    speedEl.className = 'hud-speed ' + (spd == null ? '' : spd > 120 ? 'spd-danger' : spd > 80 ? 'spd-warning' : 'spd-ok');
+
+    headingEl.textContent = headingToCardinal(s.heading) + (s.heading != null ? ' (' + Math.round(s.heading) + '°)' : '');
+
+    if (s.last_seen) {
+      var seenMs = new Date(s.last_seen);
+      var ageS = (Date.now() - seenMs) / 1000;
+      lastSeenEl.textContent = seenMs.toLocaleTimeString('en-ZA');
+      lastSeenEl.className = 'hud-value' + (ageS > 30 ? ' hud-stale' : '');
+    } else {
+      lastSeenEl.textContent = '—';
+      lastSeenEl.className = 'hud-value';
+    }
+    addrEl.textContent = s.address || '—';
+    driverEl.textContent = s.driver || '—';
+
+    /* Mirror to sidebar */
+    document.getElementById('sbDriver').textContent  = s.driver || '—';
+    document.getElementById('sbSpeed').textContent   = spd != null ? spd + ' km/h' : '—';
+    document.getElementById('sbAddress').textContent = s.address || '—';
+    document.getElementById('sbLastSeen').textContent = s.last_seen ? new Date(s.last_seen).toLocaleTimeString('en-ZA') : '—';
+  }
+
+  /* ── Alert Queue ───────────────────────────────────────────────────────── */
+  function handleNewAlerts(alerts) {
+    alerts.forEach(function (a) {
+      if (dismissed[a.id]) { return; }
+      if (alertsById[a.id]) { return; }  /* already known from initial render */
+      alertsById[a.id] = a;
+      alertOrder.unshift(a.id);
+
+      var card = buildAlertCard(a);
+      var list = document.getElementById('alertList');
+      var noMsg = document.getElementById('noAlertsMsg');
+      if (noMsg) { noMsg.style.display = 'none'; }
+      list.insertBefore(card, list.firstElementChild);
+
+      var animClass = a.severity === 'critical' ? 'new-critical' : 'new-warning';
+      card.classList.add(animClass);
+      setTimeout(function () { card.classList.remove(animClass); }, 3000);
+
+      syncAlertCount();
+
+      if (a.severity === 'critical') {
+        var vChs = VEHICLE_CHANNELS[String(a.vehicle_id)] || [];
+        if (vChs.length) {
+          prevChannelId = mainChannelId;
+          promoteToMainStage(vChs[0], a);
+          showBanner('⚡ Auto-switched: ' + a.kind_label + ' — ' + a.vehicle_reg);
+        }
+        playAlertBeep();
+      }
+    });
+  }
+
+  function buildAlertCard(a) {
+    var div = document.createElement('div');
+    div.className = 'alert-card sev-' + a.severity;
+    div.dataset.alertId = a.id;
+    div.dataset.vehicleId = a.vehicle_id;
+    var t = new Date(a.occurred_at).toLocaleTimeString('en-ZA', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    var unit = a.kind === 'speeding' ? ' km/h' : a.kind === 'idle' ? ' min' : '';
+    var escBtn = a.severity === 'critical'
+      ? '<button class="ac-btn" onclick="escalateAlert(' + a.id + ')">Escalate</button>'
+      : '';
+    div.innerHTML =
+      '<div class="ac-kind">' + escHtml(a.kind_label) + '</div>' +
+      '<div class="ac-vehicle">' + escHtml(a.vehicle_reg) + (a.driver_name ? ' · ' + escHtml(a.driver_name) : '') + '</div>' +
+      '<div class="ac-detail">' + t + ' · ' + a.value + unit + '</div>' +
+      '<div class="ac-actions">' +
+        '<button class="ac-btn" onclick="viewAlertVehicle(' + a.vehicle_id + ')">View</button>' +
+        '<button class="ac-btn" onclick="dismissAlertCard(' + a.id + ')">Dismiss</button>' +
+        escBtn +
+      '</div>';
+    return div;
+  }
+
+  function syncAlertCount() {
+    var visible = alertOrder.filter(function (id) { return !dismissed[id]; }).length;
+    var el = document.getElementById('alertCount');
+    if (visible) {
+      el.textContent = visible;
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  window.viewAlertVehicle = function (vehicleId) {
+    var chs = VEHICLE_CHANNELS[String(vehicleId)] || [];
+    if (chs.length) { promoteToMainStage(chs[0], null); }
+  };
+
+  window.dismissAlertCard = function (alertId) {
+    dismissed[alertId] = true;
+    var card = document.querySelector('[data-alert-id="' + alertId + '"]');
+    if (card) {
+      card.style.transition = 'opacity 0.25s';
+      card.style.opacity = '0';
+      setTimeout(function () { if (card.parentNode) { card.parentNode.removeChild(card); } }, 280);
+    }
+    syncAlertCount();
+  };
+
+  window.escalateAlert = function (alertId) {
+    showToast('⚠ Alert #' + alertId + ' escalated to supervisor');
+  };
+
+  /* ── Main Stage ────────────────────────────────────────────────────────── */
+  window.promoteToMainStage = function (channelId, triggerAlert) {
+    channelId = Number(channelId);
+    if (mainChannelId === channelId) { return; }
+    if (hlsMain) { try { hlsMain.destroy(); } catch (e) {} hlsMain = null; }
+
+    mainChannelId = channelId;
+    activeAlertId = triggerAlert ? triggerAlert.id : null;
+
+    var ch = CHANNELS[String(channelId)];
+    if (!ch) { return; }
+
+    /* Header */
+    var badge = document.getElementById('stageBadge');
+    var title = document.getElementById('stageTitle');
+    if (triggerAlert) {
+      badge.className = 'stage-badge sev-' + triggerAlert.severity;
+      badge.textContent = triggerAlert.kind_label.toUpperCase();
+    } else {
+      badge.className = 'stage-badge empty';
+      badge.textContent = '● LIVE';
+    }
+    title.textContent = ch.vehicle_reg + ' — ' + ch.channel_name;
+
+    /* Clear and render video */
+    var player = document.getElementById('stagePlayer');
+    player.querySelectorAll('video, img').forEach(function (el) { player.removeChild(el); });
+    var empty = document.getElementById('stageEmpty');
+
+    if (ch.stream_url) {
+      empty.style.display = 'none';
+      if (ch.stream_url.indexOf('.m3u8') !== -1) {
+        var video = document.createElement('video');
+        video.autoplay = true; video.muted = true; video.playsInline = true;
+        player.appendChild(video);
+        if (window.Hls && window.Hls.isSupported()) {
+          hlsMain = new window.Hls();
+          hlsMain.loadSource(ch.stream_url);
+          hlsMain.attachMedia(video);
+        } else {
+          video.src = ch.stream_url;
+        }
+      } else {
+        var img = document.createElement('img');
+        img.src = ch.stream_url;
+        img.alt = 'Live stream — ' + ch.vehicle_reg;
+        player.appendChild(img);
+      }
+    } else {
+      empty.style.display = '';
+      empty.querySelector('p').textContent = 'No stream URL configured for this channel.';
+    }
+
+    document.getElementById('stageHud').style.display = '';
+    updateHud(String(ch.vehicle_id));
+    updateSidebar(ch);
+    updateGridStageMarker();
+
+    /* Mark staged cards in alert queue */
+    document.querySelectorAll('[data-vehicle-id="' + ch.vehicle_id + '"].alert-card').forEach(function (c) {
+      c.classList.add('is-staged');
+    });
+  };
+
+  function updateSidebar(ch) {
+    document.getElementById('sbDriverEmpty').style.display = 'none';
+    document.getElementById('sbDriverContent').style.display = '';
+    document.getElementById('sbVehicle').textContent  = ch.vehicle_reg;
+    document.getElementById('sbChannel').textContent  = ch.channel_name;
+    document.getElementById('sbHistoryEmpty').style.display = 'none';
+  }
+
+  function updateGridStageMarker() {
+    document.querySelectorAll('.grid-tile').forEach(function (tile) {
+      tile.classList.toggle('on-stage', Number(tile.dataset.channelId) === mainChannelId);
+    });
+  }
+
+  /* ── Auto-switch banner ────────────────────────────────────────────────── */
+  function showBanner(text) {
+    var banner = document.getElementById('stageBanner');
+    document.getElementById('stageBannerText').textContent = text;
+    banner.style.display = 'flex';
+    document.getElementById('stageRevertBtn').style.display = '';
+    if (bannerTimer) { clearTimeout(bannerTimer); }
+    bannerTimer = setTimeout(hideBanner, 10000);
+  }
+
+  window.hideBanner = function () {
+    document.getElementById('stageBanner').style.display = 'none';
+  };
+
+  window.revertStage = function () {
+    hideBanner();
+    document.getElementById('stageRevertBtn').style.display = 'none';
+    if (prevChannelId) { promoteToMainStage(prevChannelId, null); }
+  };
+
+  /* ── Toolbar actions ───────────────────────────────────────────────────── */
+  window.saveClip = function () {
+    if (!mainChannelId) { showToast('Select a feed first'); return; }
+    var fd = new FormData();
+    fd.append('channel_id', mainChannelId);
+    if (activeAlertId) { fd.append('alert_id', activeAlertId); }
+    fd.append('csrfmiddlewaretoken', CSRF);
+    var recEl = document.getElementById('recIndicator');
+    recEl.style.display = '';
+    fetch(SAVE_CLIP_URL, {method: 'POST', body: fd})
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) { showToast('✓ Clip request #' + data.clip_request_id + ' queued'); }
+        else { showToast('Clip request failed'); }
+      })
+      .catch(function () { showToast('Clip request failed'); })
+      .finally(function () { setTimeout(function () { recEl.style.display = 'none'; }, 3000); });
+  };
+
+  window.toggleAudio = function () {
+    audioActive = !audioActive;
+    var btn = document.getElementById('audioBtn');
+    if (audioActive) {
+      btn.classList.add('tb-audio-active');
+      btn.textContent = '🎙 Audio Active';
+      showToast('🎙 Two-way audio channel opened');
+      setTimeout(function () {
+        audioActive = false;
+        btn.classList.remove('tb-audio-active');
+        btn.textContent = '🎙 Two-Way Audio';
+      }, 60000);
+    } else {
+      btn.classList.remove('tb-audio-active');
+      btn.textContent = '🎙 Two-Way Audio';
+    }
+  };
+
+  window.openEmsModal = function () {
+    var ch = mainChannelId ? CHANNELS[String(mainChannelId)] : null;
+    var s  = ch ? telemetry[String(ch.vehicle_id)] : null;
+    document.getElementById('emsVehicle').textContent = ch ? ch.vehicle_reg : '—';
+    document.getElementById('emsAddress').textContent = (s && s.address) ? s.address : 'Unknown location';
+    document.getElementById('emsModal').classList.add('open');
+  };
+
+  window.confirmEmsDispatch = function () {
+    var type = document.getElementById('emsType').value;
+    var ch = mainChannelId ? CHANNELS[String(mainChannelId)] : null;
+    closeModal('emsModal');
+    showToast('🚨 ' + type + ' dispatched for ' + (ch ? ch.vehicle_reg : '—'));
+  };
+
+  window.openTagModal = function () {
+    document.getElementById('tagModal').classList.add('open');
+  };
+
+  window.confirmTag = function () {
+    var type = document.getElementById('tagType').value;
+    closeModal('tagModal');
+    showToast('✓ Event tagged: ' + type);
+  };
+
+  window.closeModal = function (id) {
+    document.getElementById(id).classList.remove('open');
+  };
+
+  document.querySelectorAll('.surv-modal').forEach(function (modal) {
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) { modal.classList.remove('open'); }
+    });
+  });
+
+  /* ── Sidebar tabs ──────────────────────────────────────────────────────── */
+  window.switchTab = function (el, tabId) {
+    document.querySelectorAll('.stab').forEach(function (t) { t.classList.remove('active'); });
+    el.classList.add('active');
+    document.querySelectorAll('.sidebar-panel').forEach(function (p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + tabId).classList.add('active');
+  };
+
+  /* ── Fullscreen ────────────────────────────────────────────────────────── */
+  window.toggleFullscreen = function () {
+    var el = document.getElementById('survRoom');
+    if (!document.fullscreenElement) {
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }
+  };
+
+  /* ── Alert beep ────────────────────────────────────────────────────────── */
+  function playAlertBeep() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [880, 1100].forEach(function (freq, i) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.value = 0.12;
+        osc.start(ctx.currentTime + i * 0.2);
+        osc.stop(ctx.currentTime + i * 0.2 + 0.18);
+      });
+    } catch (e) {}
+  }
+
+  /* ── Toast ─────────────────────────────────────────────────────────────── */
+  var toastTimer;
+  function showToast(msg) {
+    var t = document.getElementById('survToast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.style.display = 'none'; }, 3000);
+  }
+
+  /* ── Helpers ────────────────────────────────────────────────────────────── */
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function headingToCardinal(deg) {
+    if (deg == null) { return '—'; }
+    var dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return dirs[Math.round(deg / 45) % 8];
+  }
+
+  /* ── Startup: promote first tile automatically ──────────────────────────── */
+  var firstTile = document.querySelector('.grid-tile');
+  if (firstTile) {
+    promoteToMainStage(Number(firstTile.dataset.channelId), null);
+  }
+
+})();
+</script>
+{% endblock %}

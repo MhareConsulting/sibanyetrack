@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Driver Scorecard — myTrack{% endblock %}
+{% block page_title %}Driver Scorecard{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Compliance</div>
+      <h1>Driver Scorecard</h1>
+      <p>Rolling 7-day window</p>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Driver</th>
+          <th style="text-align:right">Speeding</th>
+          <th style="text-align:right">Idle</th>
+          <th style="text-align:right">After-Hours</th>
+          <th style="text-align:right">Driving Time</th>
+          <th style="text-align:right">Score</th>
+          <th style="text-align:center">Grade</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ row.driver }}</td>
+          <td style="text-align:right;color:{% if row.speeding_count %}#dc2626{% else %}var(--text-muted){% endif %}">{{ row.speeding_count }}</td>
+          <td style="text-align:right;color:{% if row.idle_count %}#f59e0b{% else %}var(--text-muted){% endif %}">{{ row.idle_count }}</td>
+          <td style="text-align:right;color:{% if row.after_hours_count %}#f59e0b{% else %}var(--text-muted){% endif %}">{{ row.after_hours_count }}</td>
+          <td style="text-align:right;color:var(--text-muted)">{{ row.driving_minutes }} min</td>
+          <td style="text-align:right;font-weight:700;color:var(--mh-ink)">{{ row.score }}</td>
+          <td style="text-align:center">
+            {% if row.grade == 'A' %}
+              <span class="badge badge-ok">A</span>
+            {% elif row.grade == 'B' %}
+              <span class="badge" style="background:#dbeafe;color:#1d4ed8">B</span>
+            {% elif row.grade == 'C' %}
+              <span class="badge" style="background:#fef9c3;color:#854d0e">C</span>
+            {% else %}
+              <span class="badge badge-expired">{{ row.grade }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted)">
+            No driver activity in the last 7 days.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Scoring Rules</div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted)">
+      <div>Base score: <strong style="color:var(--mh-ink)">100</strong></div>
+      <div>Speeding event: <strong style="color:#dc2626">−5 pts</strong></div>
+      <div>Idle event: <strong style="color:#f59e0b">−3 pts</strong></div>
+      <div>After-hours trip (before 06:00 or after 20:00): <strong style="color:#f59e0b">−8 pts</strong></div>
+      <div>Minimum score: <strong style="color:var(--mh-ink)">0</strong></div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+      <span class="badge badge-ok">A ≥ 90</span>
+      <span class="badge" style="background:#dbeafe;color:#1d4ed8">B ≥ 80</span>
+      <span class="badge" style="background:#fef9c3;color:#854d0e">C ≥ 70</span>
+      <span class="badge badge-expired">D ≥ 60</span>
+      <span class="badge badge-expired">F &lt; 60</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

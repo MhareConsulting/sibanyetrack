@@ -1,0 +1,19 @@
+{
+  "name": "myTrack — MhareReach",
+  "short_name": "myTrack",
+  "description": "Fleet tracking for dispatchers",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F8FB",
+  "theme_color": "#8A2BE2",
+  "icons": [
+    {
+      "src": "/static/mobile/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

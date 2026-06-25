@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Trips — myTrack{% endblock %}
+{% block page_title %}Trips{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{% url 'reports-trips-csv' %}?vehicle={{ vehicle_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    CSV
+  </a>
+  <a href="{% url 'reports-trips-pdf' %}?vehicle={{ vehicle_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+    PDF
+  </a>
+  {% if vehicle_filter %}
+  <a href="{% url 'export-sars-logbook' %}?vehicle={{ vehicle_filter }}&date_from={{ date_filter }}" class="btn btn-ghost btn-sm" title="SARS-compliant mileage logbook">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    SARS Logbook
+  </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Vehicle</label>
+      <select name="vehicle" class="form-control">
+        <option value="">All vehicles</option>
+        {% for v in vehicles %}
+        <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Date</label>
+      <input type="date" name="date" value="{{ date_filter }}" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if vehicle_filter or date_filter %}
+    <a href="{% url 'trip-list' %}" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Driver</th>
+          <th>Started</th>
+          <th>Ended</th>
+          <th>Duration</th>
+          <th>Distance</th>
+          <th>Top Speed</th>
+          <th>Pings</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for trip in page_obj %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ trip.vehicle.registration }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ trip.driver_name|default:"—" }}</td>
+          <td style="font-size:0.82rem">{{ trip.started_at|date:"d M H:i" }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">
+            {% if trip.ended_at %}{{ trip.ended_at|date:"d M H:i" }}{% else %}<span style="color:#16a34a">● Active</span>{% endif %}
+          </td>
+          <td>
+            {% if trip.duration_minutes %}{{ trip.duration_minutes }} min{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if trip.distance_km %}{{ trip.distance_km|floatformat:1 }} km{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if trip.max_speed_kmh %}{{ trip.max_speed_kmh|floatformat:0 }} km/h{% else %}—{% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ trip.ping_count }}</td>
+          <td style="text-align:right;padding-right:16px">
+            <a href="{% url 'trip-replay' trip.pk %}" class="btn btn-ghost btn-sm">Replay</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">No trips recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&vehicle={{ vehicle_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&vehicle={{ vehicle_filter }}&date={{ date_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

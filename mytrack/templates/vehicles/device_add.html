@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Add Device — myTrack{% endblock %}
+{% block page_title %}Add GPS Device{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:680px">
+
+  {% if error %}
+  <div class="alert alert-error" style="margin-bottom:16px">{{ error }}</div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:24px">
+    <h3 style="font-size:0.9rem;font-weight:700;margin:0 0 16px">Device details</h3>
+    <form method="post" id="add-form">
+      {% csrf_token %}
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">IMEI <span style="color:#e11d48">*</span></label>
+        <input class="form-control" name="imei" value="{{ post.imei|default:'' }}"
+               placeholder="e.g. 356307042985765" maxlength="17" required
+               style="font-family:monospace">
+        <div style="font-size:0.74rem;color:var(--text-muted);margin-top:4px">
+          15–17 digit unique identifier printed on the device label.
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Device family</label>
+        <select class="form-control" name="device_family" id="family-select">
+          {% for key, label in families %}
+          <option value="{{ key }}" {% if post.device_family == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Model name</label>
+        <input class="form-control" name="model_name" id="model-name"
+               value="{{ post.model_name|default:'' }}" placeholder="e.g. FMB920">
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">SIM phone number</label>
+        <input class="form-control" name="phone_number"
+               value="{{ post.phone_number|default:'' }}" placeholder="e.g. +27821234567">
+        <div style="font-size:0.74rem;color:var(--text-muted);margin-top:4px">
+          The SIM card number in the device — used for SMS configuration.
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:20px">
+        <label class="form-label">Link to vehicle</label>
+        <select class="form-control" name="vehicle_id">
+          <option value="">— Link later —</option>
+          {% for v in vehicles %}
+          <option value="{{ v.pk }}" {% if post.vehicle_id == v.pk|stringformat:"s" %}selected{% endif %}>
+            {{ v.registration }}{% if v.label %} — {{ v.label }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button type="submit" class="btn btn-primary">Register Device</button>
+        <a href="{% url 'device-list' %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Setup instructions preview (updates when family changes) -->
+  <div class="card" id="sms-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <svg id="card-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mh-purple)">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <h3 id="card-title" style="font-size:0.9rem;font-weight:700;margin:0">SMS setup instructions</h3>
+      <span id="card-meta" style="font-size:0.74rem;color:var(--text-muted);margin-left:auto">server: <code style="font-size:0.78rem">{{ traccar_host }}</code></span>
+    </div>
+    <div id="sms-instructions">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+</div>
+
+<script>
+const TRACCAR_HOST = "{{ traccar_host|escapejs }}";
+const STREAMAX_PUSH_URL = "{{ streamax_push_url|escapejs }}";
+const STREAMAX_TOKEN    = "{{ streamax_token|escapejs }}";
+
+const INSTRUCTIONS = {
+  streamax: {
+    port: 8001,
+    isAlarmPush: true,
+    steps: [
+      { label: "Server / Host",        sms: STREAMAX_PUSH_URL ? STREAMAX_PUSH_URL.replace(/^https?:\/\//, "").split("/")[0].split(":")[0] : "20.164.200.242" },
+      { label: "Port",                 sms: "8001" },
+      { label: "Path / URL",           sms: "/api/video/streamax/event/" },
+      { label: "Protocol",             sms: "HTTP POST" },
+      { label: "Data Format",          sms: "JSON" },
+      { label: "Push Password / Token", sms: STREAMAX_TOKEN || "(set STREAMAX_WEBHOOK_TOKEN in server env)" },
+      { label: "Full Push URL",        sms: STREAMAX_PUSH_URL || "http://20.164.200.242:8001/api/video/streamax/event/" },
+    ],
+    note: "On the device's web interface, go to Network → Alarm Push (or Platform Settings, depending on firmware) and enter each value below.",
+  },
+  teltonika_fmb: {
+    port: 5027,
+    steps: [
+      { label: "Set APN", sms: "setparam 2001:[YOUR_APN]" },
+      { label: "Set server (primary)", sms: `setparam 2004:${TRACCAR_HOST} 2005:5027 2006:0` },
+      { label: "Verify server", sms: "getparam 2004" },
+      { label: "Restart tracker", sms: "setparam 10001:1" },
+    ],
+    note: "Send each SMS to the tracker's SIM number. The device will reply to confirm each setting. Replace [YOUR_APN] with your mobile network APN (e.g. internet for most SA networks).",
+  },
+  teltonika_fmc: {
+    port: 5027,
+    steps: [
+      { label: "Set APN", sms: "setparam 2001:[YOUR_APN]" },
+      { label: "Set server (primary)", sms: `setparam 2004:${TRACCAR_HOST} 2005:5027 2006:0` },
+      { label: "Verify server", sms: "getparam 2004" },
+      { label: "Restart tracker", sms: "setparam 10001:1" },
+    ],
+    note: "FMC series uses the same SMS protocol as FMB. Replace [YOUR_APN] with your APN.",
+  },
+  queclink_gl: {
+    port: 5023,
+    steps: [
+      { label: "Configure server + APN", sms: `AT+GTSRI=queclink,[YOUR_APN],,,${TRACCAR_HOST},5023,0,0,0,0,,FFFF$` },
+      { label: "Check configuration", sms: "AT+GTSRI=queclink,,,,,,,,,,,,FFFF$" },
+    ],
+    note: "Send to the GL200/GL300 SIM number. Replace [YOUR_APN] with your network APN. The device will reply with +ACK:GTSRI.",
+  },
+  queclink_gv: {
+    port: 5093,
+    steps: [
+      { label: "Configure server + APN", sms: `AT+GTSRI=queclink,[YOUR_APN],,,${TRACCAR_HOST},5093,0,0,0,0,,FFFF$` },
+      { label: "Check configuration", sms: "AT+GTSRI=queclink,,,,,,,,,,,,FFFF$" },
+    ],
+    note: "GV300/GV55 use port 5093. Replace [YOUR_APN] with your APN.",
+  },
+  other: {
+    port: 5055,
+    steps: [
+      { label: "HTTP OsmAnd endpoint", sms: `http://${TRACCAR_HOST}:5055/?id=[DEVICE_ID]&lat={lat}&lon={lon}&speed={speed}` },
+    ],
+    note: "For devices not listed above, configure them to POST to the OsmAnd-compatible HTTP endpoint. The {lat}, {lon}, {speed} placeholders are filled by the device firmware.",
+  },
+};
+
+function renderInstructions(family) {
+  const info = INSTRUCTIONS[family] || INSTRUCTIONS.other;
+  const container = document.getElementById("sms-instructions");
+
+  // Update card header for Streamax
+  if (info.isAlarmPush) {
+    document.getElementById("card-title").textContent = "Alarm Push configuration";
+    document.getElementById("card-icon").innerHTML = '<path d="M15 10l4.553-2.069A1 1 0 0 1 21 8.82v6.36a1 1 0 0 1-1.447.889L15 14"/><rect x="1" y="6" width="14" height="12" rx="2"/>';
+    document.getElementById("card-meta").style.display = "none";
+  } else {
+    document.getElementById("card-title").textContent = "SMS setup instructions";
+    document.getElementById("card-icon").innerHTML = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
+    document.getElementById("card-meta").style.display = "";
+  }
+
+  let html = `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px">${info.note}</div>`;
+  const listTag = info.isAlarmPush ? "div" : "ol";
+  const itemTag = info.isAlarmPush ? "div" : "li";
+  const listStyle = info.isAlarmPush
+    ? `style="display:flex;flex-direction:column;gap:10px"`
+    : `style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px"`;
+  html += `<${listTag} ${listStyle}>`;
+  info.steps.forEach(step => {
+    const escaped = step.sms.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    html += `
+      <${itemTag} style="font-size:0.82rem">
+        <div style="font-weight:600;margin-bottom:4px">${step.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <code style="background:var(--bg-soft,#f4f4f5);border:1px solid var(--border-soft,#e4e4e7);
+                       border-radius:6px;padding:6px 10px;font-size:0.78rem;flex:1;
+                       word-break:break-all;line-height:1.5">${escaped}</code>
+          <button type="button" class="copy-btn" data-sms="${escaped}"
+                  style="flex-shrink:0;background:none;border:1px solid var(--border-soft,#e4e4e7);
+                         border-radius:6px;padding:5px 9px;cursor:pointer;font-size:0.72rem;
+                         color:var(--text-muted);white-space:nowrap">Copy</button>
+        </div>
+      </${itemTag}>`;
+  });
+  html += `</${listTag}>`;
+  container.innerHTML = html;
+}
+
+document.getElementById("sms-instructions").addEventListener("click", e => {
+  const btn = e.target.closest(".copy-btn[data-sms]");
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.dataset.sms).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+});
+
+const sel = document.getElementById("family-select");
+renderInstructions(sel.value);
+sel.addEventListener("change", () => renderInstructions(sel.value));
+</script>
+{% endblock %}

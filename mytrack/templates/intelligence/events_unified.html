@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}Events — myTrack{% endblock %}
+{% block page_title %}Events{% endblock %}
+{% block extra_head %}
+<style>
+  .kind-picker { position: relative; min-width: 280px; }
+  .kind-picker-btn {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+  .kind-picker-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    width: 360px;
+    max-width: min(92vw, 360px);
+    max-height: 360px;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    padding: 10px;
+  }
+  .kind-picker.open .kind-picker-panel { display: block; }
+  .kind-picker-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+  .kind-picker-link {
+    background: none;
+    border: none;
+    color: var(--mh-purple);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+  }
+  .kind-picker-search { margin-bottom: 10px; }
+  .kind-group-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 8px 0 4px;
+    font-weight: 700;
+  }
+  .kind-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    font-size: 0.84rem;
+  }
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+{% if unresolved_alert_count %}
+<span style="font-size:0.82rem;color:var(--text-muted)">{{ unresolved_alert_count }} unresolved alerts</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <a href="{% url 'events-live-dashboard' %}" class="btn btn-ghost btn-sm" style="font-weight:700;color:#dc2626;border-color:#fecaca">🚨 Dispatcher Console</a>
+    <a href="{% url 'events-dashboard' %}" class="btn btn-ghost btn-sm" style="font-weight:600">Dashboard view</a>
+    <a href="{% url 'geofence-event-list' %}" class="btn btn-ghost btn-sm">Legacy Geofence Events</a>
+  </div>
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:140px">
+      <label>Source</label>
+      <select name="source" class="form-control">
+        <option value="all"{% if source_filter == "all" %} selected{% endif %}>All sources</option>
+        <option value="alert"{% if source_filter == "alert" %} selected{% endif %}>Alerts</option>
+        <option value="geofence"{% if source_filter == "geofence" %} selected{% endif %}>Geofence</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>Vehicle</label>
+      <select name="vehicle" class="form-control">
+        <option value="">All vehicles</option>
+        {% for v in vehicles %}
+        <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:180px">
+      <label>Status</label>
+      <select name="status" class="form-control">
+        <option value="all"{% if status_filter == "all" %} selected{% endif %}>All statuses</option>
+        <option value="open"{% if status_filter == "open" %} selected{% endif %}>Open alerts only</option>
+        <option value="resolved"{% if status_filter == "resolved" %} selected{% endif %}>Resolved alerts only</option>
+      </select>
+    </div>
+    <div class="form-group kind-picker" id="kindPicker" style="margin:0">
+      <label>Event kinds</label>
+      <button type="button" class="kind-picker-btn" onclick="toggleKindPicker()">
+        <span id="kindPickerLabel">All event kinds</span>
+        <span style="color:var(--text-muted)">▾</span>
+      </button>
+      <div class="kind-picker-panel" id="kindPickerPanel">
+        <div class="kind-picker-tools">
+          <button type="button" class="kind-picker-link" onclick="setAllKinds(true)">Select all</button>
+          <button type="button" class="kind-picker-link" onclick="setAllKinds(false)">Clear all</button>
+        </div>
+        <input id="kindSearch" type="text" class="form-control kind-picker-search" placeholder="Search kinds..." oninput="filterKindOptions()">
+        {% for group in kind_groups %}
+          <div class="kind-group" data-kind-group>
+            <div class="kind-group-title">{{ group.title }}</div>
+            {% for item in group.items %}
+              <label class="kind-option" data-kind-option data-kind-label="{{ item.label|lower }}">
+                <input type="checkbox" name="kind" value="{{ item.value }}"{% if item.value in selected_kinds %} checked{% endif %} onchange="updateKindPickerLabel()">
+                <span>{{ item.label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-group" style="margin:0;min-width:150px">
+      <label>From</label>
+      <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+    </div>
+    <div class="form-group" style="margin:0;min-width:150px">
+      <label>To</label>
+      <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+    </div>
+    <div class="form-group" style="margin:0;min-width:140px">
+      <label>Rows per page</label>
+      <select name="per_page" class="form-control">
+        <option value="50"{% if per_page == 50 %} selected{% endif %}>50</option>
+        <option value="100"{% if per_page == 100 %} selected{% endif %}>100</option>
+        <option value="200"{% if per_page == 200 %} selected{% endif %}>200</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:180px">
+      <label>Search registration</label>
+      <input type="text" name="q" value="{{ q_filter }}" class="form-control" placeholder="e.g. ABC123GP">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Apply</button>
+    <a href="{% url 'event-list' %}" class="btn btn-ghost btn-sm">Reset</a>
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Kind</th>
+          <th>Vehicle</th>
+          <th>Driver</th>
+          <th>Context</th>
+          <th>Occurred</th>
+          <th>Status</th>
+          <th>Video</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in page_obj %}
+        <tr>
+          <td>
+            {% if ev.source == "alert" %}
+              <span class="badge badge-expired">Alert</span>
+            {% else %}
+              <span class="badge badge-warning">Geofence</span>
+            {% endif %}
+          </td>
+          <td>{{ ev.kind_display }}</td>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ ev.vehicle.registration }}</td>
+          <td style="color:var(--text-muted);font-size:0.82rem">{{ ev.driver_name|default:"—" }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">
+            {% if ev.source == "alert" %}
+              {% if ev.kind == "speeding" %}
+              {{ ev.record.value|floatformat:0 }} km/h over {{ ev.record.threshold|floatformat:0 }}
+              {% elif ev.kind == "idle" %}
+              {{ ev.record.value|floatformat:1 }} min (threshold {{ ev.record.threshold|floatformat:0 }})
+              {% else %}
+              Safety/telematics event
+              {% endif %}
+            {% else %}
+              {{ ev.record.geofence.name }}
+            {% endif %}
+          </td>
+          <td style="font-size:0.82rem">{{ ev.occurred_at|date:"d M Y H:i" }}</td>
+          <td>
+            {% if ev.status == "open" %}
+            <span class="badge badge-expired">Open</span>
+            {% elif ev.status == "resolved" %}
+            <span class="badge badge-ok">Resolved</span>
+            {% else %}
+            <span class="badge badge-unknown">Closed</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if ev.video_assets %}
+              <a href="{% url 'video-detail' ev.video_assets.0.pk %}" style="font-size:0.82rem;font-weight:600;text-decoration:none">Clip</a>
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;padding-right:16px">
+            {% if ev.source == "alert" and ev.status == "open" %}
+            <form method="post" action="{% url 'alert-resolve' ev.record.pk %}"
+                  style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+              {% csrf_token %}
+              <select name="note" class="form-control"
+                      style="font-size:0.78rem;padding:3px 6px;min-width:150px;height:auto">
+                <option value="Driver notified">Driver notified</option>
+                <option value="False positive">False positive</option>
+                <option value="No action needed">No action needed</option>
+                <option value="Under investigation">Under investigation</option>
+              </select>
+              <button type="submit" class="btn btn-ghost btn-sm">Resolve</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">No events in this range.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&source={{ source_filter }}&status={{ status_filter }}&vehicle={{ vehicle_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&per_page={{ per_page }}&q={{ q_filter }}{% for k in selected_kinds %}&kind={{ k }}{% endfor %}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&source={{ source_filter }}&status={{ status_filter }}&vehicle={{ vehicle_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&per_page={{ per_page }}&q={{ q_filter }}{% for k in selected_kinds %}&kind={{ k }}{% endfor %}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function getKindPickerRoot() {
+  return document.getElementById("kindPicker");
+}
+function toggleKindPicker() {
+  const root = getKindPickerRoot();
+  if (!root) return;
+  root.classList.toggle("open");
+}
+function updateKindPickerLabel() {
+  const root = getKindPickerRoot();
+  if (!root) return;
+  const checks = root.querySelectorAll('input[name="kind"]');
+  const checked = root.querySelectorAll('input[name="kind"]:checked');
+  const label = document.getElementById("kindPickerLabel");
+  if (!label) return;
+  if (checked.length === 0) label.textContent = "All event kinds";
+  else if (checked.length === checks.length) label.textContent = "All event kinds selected";
+  else label.textContent = checked.length + " selected";
+}
+function setAllKinds(selected) {
+  const root = getKindPickerRoot();
+  if (!root) return;
+  root.querySelectorAll('input[name="kind"]').forEach(cb => { cb.checked = selected; });
+  updateKindPickerLabel();
+}
+function filterKindOptions() {
+  const root = getKindPickerRoot();
+  if (!root) return;
+  const search = document.getElementById("kindSearch");
+  const q = (search?.value || "").trim().toLowerCase();
+  root.querySelectorAll("[data-kind-option]").forEach(el => {
+    const text = el.getAttribute("data-kind-label") || "";
+    el.style.display = (!q || text.includes(q)) ? "" : "none";
+  });
+}
+document.addEventListener("click", function (e) {
+  const root = getKindPickerRoot();
+  if (!root) return;
+  if (!root.contains(e.target)) root.classList.remove("open");
+});
+updateKindPickerLabel();
+</script>
+{% endblock %}

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Track Your Delivery — MyReach</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f7f8fb;
+      display: flex; flex-direction: column; height: 100dvh;
+      color: #0a0a0a;
+    }
+
+    /* Header */
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 14px 20px;
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .brand-dot {
+      width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+      background: linear-gradient(135deg, #00C8FF 0%, #8A2BE2 100%);
+    }
+    .header-text h1 { font-size: 0.95rem; font-weight: 700; }
+    .header-text p  { font-size: 0.8rem; color: #6b7280; margin-top: 1px; }
+
+    /* Map */
+    #map { flex: 1; z-index: 0; }
+
+    /* Stop banner */
+    .stop-banner {
+      display: none;
+      background: #fef3c7;
+      border-bottom: 1px solid #fcd34d;
+      padding: 10px 20px;
+      font-size: 0.84rem; font-weight: 600; color: #92400e;
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .stop-badge {
+      background: #f59e0b; color: #fff;
+      font-size: 0.72rem; font-weight: 800; padding: 2px 8px;
+      border-radius: 999px; flex-shrink: 0;
+    }
+
+    /* Stats strip */
+    .stats {
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      padding: 12px 20px;
+      display: flex; gap: 0; flex-shrink: 0;
+    }
+    .stat { flex: 1; text-align: center; padding: 0 8px; }
+    .stat + .stat { border-left: 1px solid #e5e7eb; }
+    .stat-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9ca3af; }
+    .stat-value { font-size: 1.1rem; font-weight: 800; color: #0a0a0a; margin-top: 2px; }
+    .stat-value.loading { color: #d1d5db; }
+
+    /* Delivered state */
+    .delivered-banner {
+      display: none;
+      background: #d1fae5;
+      border-top: 1px solid #6ee7b7;
+      padding: 16px 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .delivered-banner .tick { font-size: 1.5rem; }
+    .delivered-banner strong { display: block; font-size: 1rem; color: #065f46; margin-top: 4px; }
+    .delivered-banner span { font-size: 0.82rem; color: #047857; }
+
+    /* Live indicator */
+    .live-dot {
+      display: inline-block; width: 7px; height: 7px;
+      background: #22c55e; border-radius: 50%; margin-right: 5px;
+      animation: pulse 2s ease infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    .footer {
+      background: #fff; border-top: 1px solid #f0f1f5;
+      padding: 7px 20px; font-size: 0.74rem; color: #9ca3af; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand-dot"></div>
+    <div class="header-text">
+      <h1>{% if share.customer_name %}Hello {{ share.customer_name }}{% else %}Live Delivery Tracking{% endif %}</h1>
+      <p>{{ share.note|default:"Your delivery is on the way." }}</p>
+    </div>
+  </div>
+
+  <!-- Stop position banner (shown for multi-stop runs) -->
+  <div id="stopBanner" style="display:none;background:#fef3c7;border-bottom:1px solid #fcd34d;padding:10px 20px;font-size:0.84rem;font-weight:600;color:#92400e;flex-shrink:0;align-items:center;gap:8px;">
+    <span id="stopBadge" style="background:#f59e0b;color:#fff;font-size:0.72rem;font-weight:800;padding:2px 8px;border-radius:999px;flex-shrink:0;"></span>
+    <span id="stopText"></span>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Delivered state (shown when completed) -->
+  <div class="delivered-banner" id="deliveredBanner">
+    <div class="tick">✅</div>
+    <strong>Delivered</strong>
+    <span id="deliveredAt"></span>
+  </div>
+
+  <!-- Stats strip (shown when active + has destination) -->
+  <div class="stats" id="statsStrip" style="display:none;">
+    <div class="stat">
+      <div class="stat-label">Distance</div>
+      <div class="stat-value loading" id="statDistance">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">ETA</div>
+      <div class="stat-value loading" id="statEta">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Speed</div>
+      <div class="stat-value loading" id="statSpeed">—</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="footerStatus">Connecting…</span>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+{% include "tracking/snippets/trip_route_stops.js.inc" %}
+    const API_URL = '/api/track/{{ share.token }}/';
+
+    const map = L.map('map', { zoomControl: true }).setView([-26.2041, 28.0473], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 20
+    }).addTo(map);
+
+    const vehicleIcon = L.divIcon({
+      html: `<div style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="26" viewBox="0 0 18 26" style="display:block">
+        <rect x="2" y="4" width="14" height="18" rx="4" fill="#8A2BE2" stroke="#fff" stroke-width="1.5"/>
+        <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
+        <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
+        <rect x="5" y="2" width="8" height="3" rx="2" fill="#8A2BE2" opacity=".7"/>
+        <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        <rect x="15.5" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+      </svg></div>`,
+      iconSize: [18, 26], iconAnchor: [9, 13], className: ''
+    });
+
+    const destIcon = L.divIcon({
+      html: `<div style="background:#dc2626;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(220,38,38,0.5)"></div>`,
+      iconSize: [16, 16], iconAnchor: [8, 8], className: ''
+    });
+
+    let vehicleMarker = null;
+    let destMarker    = null;
+    let firstLoad     = true;
+    let hasDestination = false;
+    const routeGroup = L.layerGroup().addTo(map);
+
+    function fmtEta(mins) {
+      if (mins < 1) return '< 1 min';
+      if (mins < 60) return `~${mins} min`;
+      const h = Math.floor(mins / 60), m = mins % 60;
+      return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+    }
+
+    function fmtDistance(km) {
+      if (km < 1) return `${Math.round(km * 1000)} m`;
+      return `${km.toFixed(1)} km`;
+    }
+
+    function showDelivered(completedAt) {
+      document.getElementById('statsStrip').style.display = 'none';
+      document.getElementById('deliveredBanner').style.display = 'block';
+      document.getElementById('liveDot').style.background = '#10b981';
+      document.getElementById('liveDot').style.animation = 'none';
+      const d = new Date(completedAt);
+      document.getElementById('deliveredAt').textContent = `Completed at ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+      document.getElementById('footerStatus').textContent = 'Delivery complete';
+      routeGroup.clearLayers();
+    }
+
+    function fetchLocation() {
+      fetch(API_URL)
+        .then(r => r.json())
+        .then(data => {
+
+          if (data.status === 'delivered') {
+            showDelivered(data.completed_at);
+            return;
+          }
+
+          if (data.error) {
+            document.getElementById('footerStatus').textContent =
+              data.error === 'expired' ? 'Tracking link has expired.' : 'Location unavailable.';
+            return;
+          }
+
+          // Place/update vehicle marker
+          const pos = [data.lat, data.lon];
+          if (!vehicleMarker) {
+            vehicleMarker = L.marker(pos, { icon: vehicleIcon }).addTo(map)
+              .bindPopup(`<strong>${data.vehicle}</strong>`);
+          } else {
+            vehicleMarker.setLatLng(pos);
+          }
+
+          // Destination marker + dashed line
+          if (data.destination && !destMarker) {
+            hasDestination = true;
+            const dPos = [data.destination.lat, data.destination.lon];
+            destMarker = L.marker(dPos, { icon: destIcon }).addTo(map)
+              .bindPopup(data.destination.address || 'Destination');
+            document.getElementById('statsStrip').style.display = 'flex';
+          }
+
+          const trail = Array.isArray(data.trail) ? data.trail : [];
+          const vPos = vehicleMarker.getLatLng();
+          const destLL =
+            hasDestination && destMarker
+              ? (() => {
+                  const d = destMarker.getLatLng();
+                  return [d.lat, d.lng];
+                })()
+              : null;
+          leafRebuildRouteVisuals(routeGroup, trail, [vPos.lat, vPos.lng], destLL);
+
+          // Fit map on first load
+          if (firstLoad) {
+            if (hasDestination && destMarker) {
+              const group = L.featureGroup([vehicleMarker, destMarker]);
+              map.fitBounds(group.getBounds().pad(0.25));
+            } else {
+              map.setView(pos, 14);
+              vehicleMarker.openPopup();
+            }
+            firstLoad = false;
+          }
+
+          // Stop position banner
+          if (data.stops_ahead !== null && data.stops_ahead !== undefined && data.total_stops) {
+            const banner = document.getElementById('stopBanner');
+            const badge  = document.getElementById('stopBadge');
+            const text   = document.getElementById('stopText');
+            badge.textContent = `Stop ${data.stop_number} of ${data.total_stops}`;
+            if (data.stops_ahead === 0) {
+              text.textContent = "You're next — the driver is heading your way.";
+              banner.style.background = '#d1fae5';
+              banner.style.borderColor = '#6ee7b7';
+              banner.style.color = '#065f46';
+              badge.style.background = '#10b981';
+            } else {
+              text.textContent = data.stops_ahead === 1
+                ? '1 delivery ahead of yours — almost there.'
+                : `${data.stops_ahead} deliveries ahead of yours.`;
+            }
+            banner.style.display = 'flex';
+          }
+
+          // Update stats
+          if (data.distance_km !== null) {
+            document.getElementById('statDistance').textContent = fmtDistance(data.distance_km);
+            document.getElementById('statDistance').classList.remove('loading');
+          }
+          if (data.eta_minutes !== null) {
+            document.getElementById('statEta').textContent = fmtEta(data.eta_minutes);
+            document.getElementById('statEta').classList.remove('loading');
+          }
+          if (data.speed_kmh !== null) {
+            document.getElementById('statSpeed').textContent = `${Math.round(data.speed_kmh)} km/h`;
+            document.getElementById('statSpeed').classList.remove('loading');
+          }
+
+          const d = new Date(data.updated_at);
+          document.getElementById('footerStatus').textContent = `Updated ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})} · refreshes every 30s`;
+        })
+        .catch(() => {
+          document.getElementById('footerStatus').textContent = 'Connection error — retrying…';
+        });
+    }
+
+    fetchLocation();
+    setInterval(fetchLocation, 30000);
+  </script>
+</body>
+</html>

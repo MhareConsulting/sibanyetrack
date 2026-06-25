@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Dwell Time{% endblock %}
+{% block page_title %}Dwell Time{% endblock %}
+
+{% block topbar_actions %}
+{% if rows %}
+<a href="?{{ request.GET.urlencode }}&export=csv" class="btn btn-ghost btn-sm">Export CSV</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Intelligence</div>
+      <h1>Dwell Time</h1>
+      <p>Time vehicles spend inside each geofence, computed from enter/exit pairs</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card" style="margin-bottom:20px;">
+    <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="form-group" style="margin:0;flex:1;min-width:140px;">
+        <label>Geofence</label>
+        <select name="geofence" class="form-control">
+          <option value="">All geofences</option>
+          {% for gf in geofences %}
+          <option value="{{ gf.pk }}"{% if geofence_filter == gf.pk|stringformat:"s" %} selected{% endif %}>{{ gf.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:140px;">
+        <label>Vehicle</label>
+        <select name="vehicle" class="form-control">
+          <option value="">All vehicles</option>
+          {% for v in vehicles %}
+          <option value="{{ v.pk }}"{% if vehicle_filter == v.pk|stringformat:"s" %} selected{% endif %}>{{ v.registration }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:130px;">
+        <label>From</label>
+        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+      </div>
+      <div class="form-group" style="margin:0;min-width:130px;">
+        <label>To</label>
+        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:0;">Filter</button>
+      <a href="{% url 'dwell-time-report' %}" class="btn btn-ghost btn-sm" style="margin-bottom:0;">Clear</a>
+    </form>
+  </div>
+
+  {% if rows %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Geofence</th>
+          <th>Vehicle</th>
+          <th>Visits</th>
+          <th>Avg Dwell</th>
+          <th>Max Dwell</th>
+          <th>Last Visit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td style="font-weight:600;">{{ r.geofence.name }}</td>
+          <td>{{ r.vehicle.registration }}</td>
+          <td>{{ r.visits }}</td>
+          <td>
+            {% if r.avg_dwell >= 60 %}
+              {{ r.avg_dwell|floatformat:0 }} min <span style="color:var(--text-soft)">({{ r.avg_dwell|divisibleby:60|floatformat:1 }}h)</span>
+            {% else %}
+              {{ r.avg_dwell }} min
+            {% endif %}
+          </td>
+          <td>{{ r.max_dwell }} min</td>
+          <td style="color:var(--text-muted);">
+            {% if r.last_visit %}{{ r.last_visit|date:"d M Y H:i" }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:48px;">
+    <div style="font-size:2rem;margin-bottom:12px;">🕐</div>
+    <p style="color:var(--text-muted);">No dwell data found for the selected filters. Dwell time requires matched enter and exit geofence events.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

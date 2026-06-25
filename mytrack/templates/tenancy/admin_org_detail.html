@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ org.name }} — Admin{% endblock %}
+{% block page_title %}{{ org.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.tab-bar { display:flex; gap:0; border-bottom:2px solid var(--border-soft); margin-bottom:20px; }
+.tab-btn {
+  padding:8px 18px; font-size:0.82rem; font-weight:600; color:var(--text-muted);
+  text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-2px;
+  transition:color 100ms;
+}
+.tab-btn.active { color:var(--mh-peri); border-color:var(--mh-peri); }
+.tab-btn:hover:not(.active) { color:var(--mh-ink); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <!-- Breadcrumb + seat counter -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+    <a href="{% url 'admin-applications' %}" style="font-size:0.82rem;color:var(--text-muted);text-decoration:none">← Applications</a>
+    <span style="color:var(--text-muted)">/</span>
+    <span style="font-size:0.82rem;font-weight:600">{{ org.name }}</span>
+    <span style="margin-left:auto;font-size:0.8rem;color:var(--text-muted)">
+      {{ licensed_count }}/{{ org.seat_limit }} seats used
+      {% if licensed_count > org.seat_limit %}
+        <span style="color:#dc2626;font-weight:700">(over limit)</span>
+      {% endif %}
+    </span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <a href="?tab=users"    class="tab-btn{% if tab == 'users' %} active{% endif %}">Users ({{ users|length }})</a>
+    <a href="?tab=devices"  class="tab-btn{% if tab == 'devices' %} active{% endif %}">Devices ({{ devices|length }})</a>
+    <a href="?tab=settings" class="tab-btn{% if tab == 'settings' %} active{% endif %}">Settings</a>
+  </div>
+
+  <!-- Users tab -->
+  {% if tab == 'users' %}
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <a href="{% url 'admin-user-create' %}?organisation={{ org.pk }}" class="btn btn-primary btn-sm">+ Add user to {{ org.name }}</a>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th style="text-align:center">Consumes licence</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td style="font-weight:700;font-size:0.82rem">{{ u.username }}</td>
+          <td style="font-size:0.82rem">{{ u.get_full_name|default:"—" }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">{{ u.email|default:"—" }}</td>
+          <td>
+            <span style="font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:999px;
+              {% if u.role == 'admin' %}background:#ede9fe;color:#5b21b6{% elif u.role == 'dispatcher' %}background:#dbeafe;color:#1e40af{% else %}background:#f3f4f6;color:#6b7280{% endif %}">
+              {{ u.get_role_display }}
+            </span>
+          </td>
+          <td style="text-align:center">
+            <form method="post" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="user_id" value="{{ u.pk }}">
+              <button name="toggle_license" type="submit"
+                style="border:none;background:none;cursor:pointer;font-size:0.82rem;
+                  color:{% if u.consumes_license %}#065f46{% else %}var(--text-muted){% endif %}">
+                {% if u.consumes_license %}✓ Yes{% else %}— No{% endif %}
+              </button>
+            </form>
+          </td>
+          <td style="text-align:right">
+            <a href="{% url 'admin-user-edit' u.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px">No users.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Devices tab -->
+  {% if tab == 'devices' %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>IMEI</th>
+          <th>Model</th>
+          <th>Phone</th>
+          <th>Vehicle</th>
+          <th>Last activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in devices %}
+        <tr>
+          <td>
+            {% if d.status == "online" %}<span class="status-dot dot-online"></span>
+            {% elif d.status == "stale" %}<span class="status-dot dot-stale"></span>
+            {% else %}<span class="status-dot dot-offline"></span>{% endif %}
+          </td>
+          <td style="font-family:monospace;font-size:0.82rem;font-weight:700">{{ d.imei }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">{{ d.model_name|default:"—" }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">{{ d.phone_number|default:"—" }}</td>
+          <td style="font-size:0.82rem">{{ d.vehicle|default:"—" }}</td>
+          <td style="font-size:0.81rem;color:var(--text-muted)">
+            {% if d.last_activity %}{{ d.last_activity|timesince }} ago{% else %}Never{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px">No devices.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Settings tab -->
+  {% if tab == 'settings' %}
+  <div class="card" style="max-width:480px">
+    <h3 style="font-size:0.9rem;font-weight:700;margin:0 0 18px">Organisation settings</h3>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Seat limit</label>
+        <input class="form-control" type="number" name="seat_limit" value="{{ org.seat_limit }}" min="1">
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Fallback speed limit (km/h)</label>
+        <input class="form-control" type="number" name="speed_limit_kmh" value="{{ org.speed_limit_kmh }}" min="0">
+        <p class="form-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">
+          Used when road-specific data is missing, or when “Road speed limits” is off. Not a single fixed limit for the whole map when road mode is on.
+        </p>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-check" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input class="form-check-input" type="checkbox" name="road_speed_limits_enabled"
+            {% if org.road_speed_limits_enabled %}checked{% endif %}>
+          <span>Road speed limits (OSM / Traccar)</span>
+        </label>
+        <p class="form-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">
+          When enabled, myTrack uses posted limits from OpenStreetMap (after you load SA road data — see repo <code>scripts/road_osm/</code>) or from Traccar <code>speedLimit</code> attributes when present.
+        </p>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Speeding grace (km/h)</label>
+        <input class="form-control" type="number" step="0.5" name="speeding_grace_kmh" value="{{ org.speeding_grace_kmh }}">
+        <p class="form-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">
+          Alerts (and nightly scoring) allow this many km/h over the resolved limit before counting as speeding.
+        </p>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Fuel price (ZAR/litre)</label>
+        <input class="form-control" type="number" step="0.01" name="fuel_price_zar" value="{{ org.fuel_price_zar }}">
+      </div>
+      <div class="form-group" style="margin-bottom:20px">
+        <label class="form-label">Idle burn rate (L/h)</label>
+        <input class="form-control" type="number" step="0.01" name="idle_burn_rate_lph" value="{{ org.idle_burn_rate_lph }}">
+      </div>
+      <button type="submit" name="save_settings" class="btn btn-primary">Save settings</button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

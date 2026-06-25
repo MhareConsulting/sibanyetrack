@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Live — {{ channel.vehicle.registration }}{% endblock %}
+{% block page_title %}Live stream{% endblock %}
+
+{% block content %}
+<div class="content-padded" style="max-width:960px">
+
+  <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:16px">
+    <a href="{% url 'video-camera-health' %}">← Camera health</a>
+    &nbsp;·&nbsp; {{ channel.vehicle.registration }}
+    &nbsp;·&nbsp; {{ channel.name }}
+  </p>
+
+  <div class="card" style="padding:20px">
+    {% if channel.stream_url %}
+
+      {# HLS (.m3u8) uses <video> + hls.js; everything else (MJPEG) uses <img>. #}
+      {% if ".m3u8" in channel.stream_url %}
+        <video id="live-player" controls playsinline
+               style="width:100%;max-height:72vh;border-radius:10px;background:#000">
+          Your browser does not support embedded video.
+        </video>
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+        <script>
+          (function () {
+            var video = document.getElementById('live-player');
+            var src = "{{ channel.stream_url }}";
+            if (Hls.isSupported()) {
+              var hls = new Hls();
+              hls.loadSource(src);
+              hls.attachMedia(video);
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+              video.src = src;
+            }
+          })();
+        </script>
+      {% else %}
+        {# MJPEG — browsers load it as a continuous multipart image stream. #}
+        <img src="{{ channel.stream_url }}"
+             alt="Live feed — {{ channel.vehicle.registration }}"
+             style="width:100%;max-height:72vh;object-fit:contain;border-radius:10px;background:#000;display:block">
+      {% endif %}
+
+      <p style="margin-top:12px;font-size:0.82rem;color:var(--text-muted)">
+        Stream URL: <code>{{ channel.stream_url }}</code>
+        &nbsp;·&nbsp; <a href="{{ channel.stream_url }}" target="_blank" rel="noopener">Open directly</a>
+      </p>
+
+    {% else %}
+      <p style="color:var(--text-muted);padding:40px 0;text-align:center">
+        No live stream URL is configured for this channel.<br>
+        Set one via <strong>Django Admin → Video channels → {{ channel }}</strong>.
+      </p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

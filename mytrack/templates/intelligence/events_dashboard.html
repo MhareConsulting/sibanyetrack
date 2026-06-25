@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% block title %}Events Dashboard — myTrack{% endblock %}
+{% block page_title %}Events Dashboard{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --dash-red:    #ef4444;
+  --dash-amber:  #f59e0b;
+  --dash-green:  #22c55e;
+  --dash-purple: #7c3aed;
+  --dash-blue:   #3b82f6;
+  --dash-muted:  #6b7280;
+}
+.db-header {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 22px; flex-wrap: wrap;
+}
+.db-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--mh-ink); }
+.db-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.82rem; font-weight: 600; color: var(--mh-purple);
+  text-decoration: none;
+}
+.db-back:hover { text-decoration: underline; }
+
+/* Stat cards */
+.db-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px; margin-bottom: 20px;
+}
+@media (max-width: 900px) { .db-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .db-cards { grid-template-columns: 1fr; } }
+.db-card {
+  background: #fff; border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.db-card-label {
+  font-size: 0.71rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--dash-muted); margin-bottom: 6px;
+}
+.db-card-value {
+  font-size: 2rem; font-weight: 800; line-height: 1; color: var(--mh-ink);
+}
+.db-card-sub { font-size: 0.75rem; color: var(--dash-muted); margin-top: 4px; }
+.db-card.red    .db-card-value { color: var(--dash-red); }
+.db-card.amber  .db-card-value { color: var(--dash-amber); }
+.db-card.green  .db-card-value { color: var(--dash-green); }
+.db-card.purple .db-card-value { color: var(--dash-purple); }
+
+/* Chart grid */
+.db-row {
+  display: grid; gap: 16px; margin-bottom: 16px;
+}
+.db-row-2   { grid-template-columns: 2fr 1fr; }
+.db-row-1   { grid-template-columns: 1fr; }
+.db-row-half{ grid-template-columns: 1fr 1fr; }
+@media (max-width: 780px) {
+  .db-row-2, .db-row-half { grid-template-columns: 1fr; }
+}
+
+.db-chart-box {
+  background: #fff; border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.db-chart-title {
+  font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--dash-muted); margin-bottom: 14px;
+}
+.db-chart-wrap { position: relative; }
+
+/* Recent alerts list */
+.db-recent-list { list-style: none; margin: 0; padding: 0; }
+.db-recent-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border-soft);
+  font-size: 0.82rem;
+}
+.db-recent-item:last-child { border-bottom: none; }
+.db-sev-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.db-sev-dot.critical { background: var(--dash-red); }
+.db-sev-dot.warning  { background: var(--dash-amber); }
+.db-sev-dot.info     { background: var(--dash-blue); }
+.db-ri-kind  { font-weight: 600; color: var(--mh-ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-ri-veh   { color: var(--dash-muted); white-space: nowrap; font-size: 0.78rem; }
+.db-ri-time  { color: var(--dash-muted); white-space: nowrap; font-size: 0.75rem; min-width: 72px; text-align: right; }
+.db-ri-form  { flex-shrink: 0; }
+.db-ri-form button {
+  font-size: 0.72rem; font-weight: 600; padding: 3px 10px;
+  border: 1.5px solid var(--border); border-radius: 6px;
+  background: #fff; cursor: pointer; color: var(--mh-ink);
+}
+.db-ri-form button:hover { background: var(--mh-peri-soft); border-color: var(--mh-peri); }
+.db-all-link {
+  display: block; text-align: center; margin-top: 14px;
+  font-size: 0.8rem; font-weight: 600; color: var(--mh-purple); text-decoration: none;
+}
+.db-all-link:hover { text-decoration: underline; }
+.db-empty { text-align: center; padding: 28px 0; color: var(--dash-muted); font-size: 0.85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div class="db-header">
+    <a href="{% url 'event-list' %}" class="db-back">← Back to Events table</a>
+  </div>
+
+  {# ── Stat cards ─────────────────────────────────────────────── #}
+  <div class="db-cards">
+    <div class="db-card">
+      <div class="db-card-label">Total alerts today</div>
+      <div class="db-card-value">{{ total_today }}</div>
+      <div class="db-card-sub">since midnight</div>
+    </div>
+    <div class="db-card {% if open_today > 0 %}red{% else %}green{% endif %}">
+      <div class="db-card-label">Open (unresolved)</div>
+      <div class="db-card-value">{{ open_today }}</div>
+      <div class="db-card-sub">{{ resolved_today }} resolved today</div>
+    </div>
+    <div class="db-card {% if critical_today > 0 %}amber{% endif %}">
+      <div class="db-card-label">Critical today</div>
+      <div class="db-card-value">{{ critical_today }}</div>
+      <div class="db-card-sub">highest severity</div>
+    </div>
+    <div class="db-card purple">
+      <div class="db-card-label">Top offender (7 days)</div>
+      {% if top_vehicle %}
+        <div class="db-card-value" style="font-size:1.35rem">{{ top_vehicle.vehicle__registration }}</div>
+        <div class="db-card-sub">{{ top_vehicle.n }} open alert{{ top_vehicle.n|pluralize }}</div>
+      {% else %}
+        <div class="db-card-value" style="font-size:1.35rem">—</div>
+        <div class="db-card-sub">no open alerts</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Row 1: trend line + open/resolved donut ────────────────── #}
+  <div class="db-row db-row-2">
+    <div class="db-chart-box">
+      <div class="db-chart-title">Alert volume — last 7 days</div>
+      <div class="db-chart-wrap" style="height:180px">
+        <canvas id="chartTrend"></canvas>
+      </div>
+    </div>
+    <div class="db-chart-box">
+      <div class="db-chart-title">Today — open vs resolved</div>
+      <div class="db-chart-wrap" style="height:180px;display:flex;align-items:center;justify-content:center">
+        <canvas id="chartDonut" style="max-width:180px;max-height:180px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# ── Row 2: alert kind breakdown ────────────────────────────── #}
+  <div class="db-row db-row-1">
+    <div class="db-chart-box">
+      <div class="db-chart-title">Alert types — last 7 days</div>
+      <div class="db-chart-wrap" style="height:220px">
+        <canvas id="chartKinds"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# ── Row 3: per-vehicle + hourly ────────────────────────────── #}
+  <div class="db-row db-row-half">
+    <div class="db-chart-box">
+      <div class="db-chart-title">Open alerts by vehicle (top 8)</div>
+      <div class="db-chart-wrap" style="height:220px">
+        <canvas id="chartVehicles"></canvas>
+      </div>
+    </div>
+    <div class="db-chart-box">
+      <div class="db-chart-title">Alerts by hour of day — last 7 days</div>
+      <div class="db-chart-wrap" style="height:220px">
+        <canvas id="chartHourly"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# ── Recent unresolved alerts ────────────────────────────────── #}
+  <div class="db-chart-box" style="margin-bottom:16px">
+    <div class="db-chart-title">Recent unresolved alerts</div>
+    {% if recent_open %}
+    <ul class="db-recent-list">
+      {% for alert in recent_open %}
+      <li class="db-recent-item" id="db-alert-{{ alert.pk }}">
+        <span class="db-sev-dot {{ alert.severity }}"></span>
+        <span class="db-ri-kind">{{ alert.get_kind_display }}</span>
+        <span class="db-ri-veh">{{ alert.vehicle.registration }}</span>
+        <span class="db-ri-time">{{ alert.occurred_at|timesince }} ago</span>
+        <span class="db-ri-form">
+          <form method="post" action="{% url 'alert-resolve' alert.pk %}"
+                style="display:flex;gap:5px;align-items:center">
+            {% csrf_token %}
+            <input type="hidden" name="note" value="Driver notified">
+            <input type="hidden" name="next" value="{% url 'events-dashboard' %}">
+            <button type="submit">Resolve</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    <a href="{% url 'event-list' %}?status=open" class="db-all-link">View all open alerts →</a>
+    {% else %}
+    <div class="db-empty">No unresolved alerts — fleet is clear.</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PURPLE  = '#7c3aed';
+const RED     = '#ef4444';
+const GREEN   = '#22c55e';
+const AMBER   = '#f59e0b';
+const BLUE    = '#3b82f6';
+const MUTED   = '#e5e7eb';
+
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = '#6b7280';
+
+// ── Trend line ──────────────────────────────────────────────────────────────
+(function() {
+  const labels = {{ daily_labels|safe }};
+  const values = {{ daily_values|safe }};
+  const ctx = document.getElementById('chartTrend').getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 180);
+  grad.addColorStop(0, 'rgba(124,58,237,0.25)');
+  grad.addColorStop(1, 'rgba(124,58,237,0)');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: PURPLE,
+        borderWidth: 2.5,
+        pointBackgroundColor: PURPLE,
+        pointRadius: 3,
+        fill: true,
+        backgroundColor: grad,
+        tension: 0.35,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        label: ctx => ` ${ctx.parsed.y} alerts`
+      }}},
+      scales: {
+        x: { grid: { display: false }, border: { display: false } },
+        y: { beginAtZero: true, ticks: { precision: 0 },
+             grid: { color: '#f3f4f6' }, border: { display: false } }
+      }
+    }
+  });
+})();
+
+// ── Donut ──────────────────────────────────────────────────────────────────
+(function() {
+  const open = {{ open_today }};
+  const resolved = {{ resolved_today }};
+  const ctx = document.getElementById('chartDonut').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Open', 'Resolved'],
+      datasets: [{ data: [open, resolved], backgroundColor: [RED, GREEN],
+                   borderWidth: 2, borderColor: '#fff', hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      cutout: '68%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
+      }
+    },
+    plugins: [{
+      id: 'centerText',
+      afterDraw(chart) {
+        const { ctx, chartArea: { width, height, left, top } } = chart;
+        const total = open + resolved;
+        ctx.save();
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const cx = left + width / 2, cy = top + height / 2;
+        ctx.font = 'bold 22px Inter,system-ui,sans-serif';
+        ctx.fillStyle = total > 0 && open === 0 ? GREEN : (open > 0 ? RED : '#6b7280');
+        ctx.fillText(total, cx, cy - 7);
+        ctx.font = '11px Inter,system-ui,sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('total today', cx, cy + 11);
+        ctx.restore();
+      }
+    }]
+  });
+})();
+
+// ── Kinds horizontal bar ───────────────────────────────────────────────────
+(function() {
+  const labels = {{ kind_labels|safe }};
+  const values = {{ kind_values|safe }};
+  const ctx = document.getElementById('chartKinds').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: PURPLE, borderRadius: 5, barThickness: 16 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x} alerts` } }
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 },
+             grid: { color: '#f3f4f6' }, border: { display: false } },
+        y: { grid: { display: false }, border: { display: false } }
+      }
+    }
+  });
+})();
+
+// ── Per-vehicle bar ────────────────────────────────────────────────────────
+(function() {
+  const labels = {{ veh_labels|safe }};
+  const values = {{ veh_values|safe }};
+  const ctx = document.getElementById('chartVehicles').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: AMBER, borderRadius: 5, barThickness: 18 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} open alerts` } }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { display: false },
+             ticks: { maxRotation: 30 } },
+        y: { beginAtZero: true, ticks: { precision: 0 },
+             grid: { color: '#f3f4f6' }, border: { display: false } }
+      }
+    }
+  });
+})();
+
+// ── Hourly bar ─────────────────────────────────────────────────────────────
+(function() {
+  const labels = Array.from({length: 24}, (_, i) => i < 10 ? `0${i}h` : `${i}h`);
+  const values = {{ hourly_data|safe }};
+  const ctx = document.getElementById('chartHourly').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: BLUE, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} alerts at ${ctx.label}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { display: false },
+             ticks: { maxTicksLimit: 12 } },
+        y: { beginAtZero: true, ticks: { precision: 0 },
+             grid: { color: '#f3f4f6' }, border: { display: false } }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

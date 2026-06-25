@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:120px">
+      <label>Action</label>
+      <select name="action" class="form-control">
+        <option value="">All</option>
+        {% for a in distinct_actions %}
+        <option value="{{ a }}"{% if action_filter == a %} selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:130px">
+      <label>Model</label>
+      <select name="model" class="form-control">
+        <option value="">All</option>
+        {% for m in distinct_models %}
+        <option value="{{ m }}"{% if model_filter == m %} selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:160px">
+      <label>User</label>
+      <input type="text" name="user" value="{{ user_filter }}" class="form-control" placeholder="username…">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if action_filter or model_filter or user_filter %}
+    <a href="{% url 'audit-log' %}" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr><th>When</th><th>User</th><th>Action</th><th>Model</th><th>Record</th><th>Changes</th></tr>
+      </thead>
+      <tbody>
+        {% for event in page_obj %}
+        <tr>
+          <td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">{{ event.occurred_at|timesince }} ago</td>
+          <td style="font-size:0.82rem">{{ event.user.username|default:"—" }}</td>
+          <td>
+            <span class="badge {% if event.action == 'delete' %}badge-expired{% elif event.action == 'create' %}badge-ok{% else %}badge-unknown{% endif %}">
+              {{ event.action }}
+            </span>
+          </td>
+          <td style="font-size:0.82rem;color:var(--text-muted)">{{ event.target_model }}</td>
+          <td style="font-size:0.82rem">{{ event.target_repr }}</td>
+          <td style="font-size:0.78rem;color:var(--text-muted);max-width:200px">
+            {% if event.delta %}
+              {% for k, v in event.delta.items %}
+              <div>{{ k }}: {{ v.0 }} → {{ v.1 }}</div>
+              {% endfor %}
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">No audit events.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;gap:6px;margin-top:16px;justify-content:center;align-items:center">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:0.84rem;color:var(--text-muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

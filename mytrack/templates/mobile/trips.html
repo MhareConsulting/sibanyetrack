@@ -1,0 +1,127 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% block title %}Trips — myTrack{% endblock %}
+{% block header_title %}Trips{% endblock %}
+{% block content %}
+<div class="m-trip-tabs">
+  <button type="button" class="m-trip-tab active" data-class="">All</button>
+  <button type="button" class="m-trip-tab" data-class="personal">Personal</button>
+  <button type="button" class="m-trip-tab" data-class="business">Business</button>
+</div>
+<div class="m-trip-actions">
+  <button type="button" class="m-trip-action-btn" id="btn-filters">▾ Filters</button>
+  <a href="#" class="m-trip-action-btn" id="btn-download" style="text-decoration:none;color:inherit">↓ Download</a>
+</div>
+<div class="m-scroll-page" id="trips-list" style="padding-top:0">
+  <p class="m-empty">Loading trips…</p>
+</div>
+
+<div class="m-filter-sheet" id="filter-sheet">
+  <div class="m-filter-backdrop"></div>
+  <div class="m-filter-panel">
+    <h3 style="margin-bottom:12px">Filters</h3>
+    <label style="font-size:0.8rem">Vehicle</label>
+    <select id="filter-vehicle" style="width:100%;padding:10px;margin:6px 0 12px;border-radius:8px;border:1px solid var(--border)"></select>
+    <label style="font-size:0.8rem">Date</label>
+    <input type="date" id="filter-date" style="width:100%;padding:10px;margin:6px 0 12px;border-radius:8px;border:1px solid var(--border)">
+    <button type="button" class="m-trip-action-btn" id="filter-apply" style="background:var(--navy);color:#fff;border-color:var(--navy)">Apply</button>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'mobile/trips.js' %}"></script>
+<script>
+(function() {
+  const listEl = document.getElementById("trips-list");
+  const filterSheet = document.getElementById("filter-sheet");
+  const params = new URLSearchParams(location.search);
+
+  if (params.get("vehicle")) {
+    MyTrackTrips.vehicleFilter = params.get("vehicle");
+  }
+
+  document.querySelectorAll(".m-trip-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".m-trip-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      MyTrackTrips.classification = tab.dataset.class;
+      loadTrips();
+    });
+  });
+
+  document.getElementById("btn-filters").addEventListener("click", () => filterSheet.classList.add("open"));
+  filterSheet.querySelector(".m-filter-backdrop").addEventListener("click", () => filterSheet.classList.remove("open"));
+  document.getElementById("filter-apply").addEventListener("click", () => {
+    MyTrackTrips.vehicleFilter = document.getElementById("filter-vehicle").value;
+    MyTrackTrips.dateFilter = document.getElementById("filter-date").value;
+    filterSheet.classList.remove("open");
+    loadTrips();
+  });
+
+  document.getElementById("btn-download").addEventListener("click", e => {
+    e.preventDefault();
+    location.href = MyTrackTrips.downloadUrl();
+  });
+
+  function renderCard(t) {
+    const dt = MyTrackMobile.formatDt(t.started_at);
+    return `
+      <div class="m-trip-card" data-trip="${t.id}">
+        <div class="m-trip-main">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="m-chip-icon">${MyTrackMobile.vehicleIconHtml()}</span>
+            <strong>${t.vehicle_reg}</strong>
+            <span style="margin-left:auto;color:var(--muted)">🔔</span>
+          </div>
+          <div class="m-trip-route">📍 ${t.start_label}<br>📍 ${t.end_label || (t.active ? 'In progress' : '—')}</div>
+          <a href="/app/trips/${t.id}/replay/" style="font-size:0.75rem;color:var(--accent);margin-top:6px;display:inline-block">Replay track</a>
+        </div>
+        <div class="m-trip-side">
+          <span>${dt}</span>
+          <div class="m-pb-toggle">
+            <button type="button" class="m-pb-opt${t.classification === 'personal' ? ' active' : ''}" data-trip="${t.id}" data-val="personal">P</button>
+            <button type="button" class="m-pb-opt${t.classification === 'business' ? ' active' : ''}" data-trip="${t.id}" data-val="business">B</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function loadTrips() {
+    listEl.innerHTML = '<p class="m-empty">Loading…</p>';
+    try {
+      const d = await MyTrackTrips.load();
+      if (!d.trips.length) {
+        listEl.innerHTML = '<p class="m-empty">No trips match your filters</p>';
+        return;
+      }
+      listEl.innerHTML = d.trips.map(renderCard).join("");
+      listEl.querySelectorAll(".m-pb-opt").forEach(btn => {
+        btn.addEventListener("click", async e => {
+          e.stopPropagation();
+          const tripId = btn.dataset.trip;
+          const row = btn.closest(".m-pb-toggle");
+          const current = row.querySelector(".m-pb-opt.active")?.dataset.val || "business";
+          const next = await MyTrackTrips.toggleClassification(tripId, current);
+          row.querySelectorAll(".m-pb-opt").forEach(b => {
+            b.classList.toggle("active", b.dataset.val === next);
+          });
+        });
+      });
+    } catch (_) {
+      listEl.innerHTML = '<p class="m-empty">Failed to load trips</p>';
+    }
+  }
+
+  async function populateVehicles() {
+    const d = await MyTrackMobile.api("/vehicles/");
+    const sel = document.getElementById("filter-vehicle");
+    sel.innerHTML = '<option value="">All vehicles</option>' +
+      d.vehicles.map(v => `<option value="${v.id}">${v.registration}</option>`).join("");
+    if (MyTrackTrips.vehicleFilter) sel.value = MyTrackTrips.vehicleFilter;
+  }
+
+  document.addEventListener("mytrack:bootstrap", () => { populateVehicles(); loadTrips(); });
+  if (MyTrackMobile.bootstrap) { populateVehicles(); loadTrips(); }
+})();
+</script>
+{% endblock %}

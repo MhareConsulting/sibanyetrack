@@ -1,0 +1,77 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% block title %}Trip replay — myTrack{% endblock %}
+{% block header_title %}Trip replay{% endblock %}
+{% block content %}
+<div class="m-replay-map m-map-wrap">
+  <div id="replay-map" class="m-map"></div>
+</div>
+<div class="m-replay-footer">
+  <div style="font-size:0.82rem;margin-bottom:6px" id="replay-meta">Loading…</div>
+  <input type="range" id="scrubber" min="0" max="0" value="0" disabled>
+  <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--muted);margin-top:4px">
+    <span id="scrub-start">—</span>
+    <span id="scrub-end">—</span>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:8px">
+    <button type="button" class="m-trip-action-btn" id="replay-play">▶ Play</button>
+    <a href="{% url 'mobile-trips' %}" class="m-trip-action-btn" style="text-decoration:none;text-align:center">Back</a>
+  </div>
+</div>
+{% endblock %}
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+{% endblock %}
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script src="{% static 'mobile/map.js' %}"></script>
+<script>
+(function() {
+  const tripId = {{ trip_id }};
+  let pings = [];
+  let marker = null;
+  let playing = false;
+  let playTimer = null;
+
+  MyTrackMap.init("replay-map", { zoom: 13 });
+  MyTrackMobile.api(`/trips/${tripId}/replay/?snap=roads`).then(data => {
+    pings = data.pings || [];
+    document.getElementById("scrubber").max = Math.max(0, pings.length - 1);
+    document.getElementById("scrubber").disabled = pings.length < 2;
+    if (pings.length) {
+      document.getElementById("scrub-start").textContent = MyTrackMobile.formatDt(pings[0].ts);
+      document.getElementById("scrub-end").textContent = MyTrackMobile.formatDt(pings[pings.length-1].ts);
+      document.getElementById("replay-meta").textContent = pings.length + " points";
+    }
+    MyTrackMap.drawRoute(pings, data.snapped_coords);
+    if (pings.length) showIdx(0);
+  }).catch(() => {
+    document.getElementById("replay-meta").textContent = "Could not load track";
+  });
+
+  function showIdx(i) {
+    const p = pings[i];
+    if (!p || !MyTrackMap.map) return;
+    const el = document.createElement("div");
+    el.style.cssText = "width:16px;height:16px;background:#00c8ff;border:3px solid #fff;border-radius:50%";
+    if (marker) marker.remove();
+    marker = new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(MyTrackMap.map);
+    document.getElementById("scrubber").value = i;
+  }
+
+  document.getElementById("scrubber").addEventListener("input", e => showIdx(parseInt(e.target.value, 10)));
+  document.getElementById("replay-play").addEventListener("click", () => {
+    if (!pings.length) return;
+    playing = !playing;
+    document.getElementById("replay-play").textContent = playing ? "⏸ Pause" : "▶ Play";
+    if (!playing) { clearInterval(playTimer); return; }
+    let i = parseInt(document.getElementById("scrubber").value, 10);
+    playTimer = setInterval(() => {
+      i++;
+      if (i >= pings.length) { i = 0; playing = false; clearInterval(playTimer); document.getElementById("replay-play").textContent = "▶ Play"; }
+      showIdx(i);
+    }, 400);
+  });
+})();
+</script>
+{% endblock %}

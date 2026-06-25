@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  traccar:
+    image: traccar/traccar:latest
+    container_name: mytrack-traccar
+    restart: unless-stopped
+    ports:
+      - "8082:8082"   # Traccar web UI
+      - "5055:5055"   # OsmAnd / HTTP
+      - "5001:5001"   # GT06
+      - "5013:5013"   # TK103
+      - "5023:5023"   # Queclink GL200/GL300
+      - "5027:5027"   # Teltonika FMB/FMC  ← Teltonika device connects here
+      - "5093:5093"   # Queclink GV300/GV55
+    volumes:
+      - traccar_data:/opt/traccar/data
+      - ./traccar/traccar.xml:/opt/traccar/conf/traccar.xml:ro
+    environment:
+      - JAVA_OPTS=-Xmx512m
+
+  web:
+    image: mytrack-web:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8001:8001"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+  traccar_data:

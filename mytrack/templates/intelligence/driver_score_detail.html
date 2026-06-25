@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ driver.full_name }} — Score History{% endblock %}
+{% block page_title %}{{ driver.full_name }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'driver-score-list' %}" class="btn btn-ghost btn-sm">← All Drivers</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Driver Scores</div>
+      <h1>{{ driver.full_name }}</h1>
+      <p>
+        30-day score history
+        {% if driver.default_vehicle %} · {{ driver.default_vehicle.registration }}{% endif %}
+        {% if driver.licence_code %} · Licence {{ driver.get_licence_code_display }}{% endif %}
+      </p>
+    </div>
+  </div>
+
+  {% if scores %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Score</th>
+          <th>Trips</th>
+          <th>Distance (km)</th>
+          <th>Speeding Events</th>
+          <th>Harsh Accel</th>
+          <th>Idle (min)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in scores reversed %}
+        <tr>
+          <td>{{ s.scored_date }}</td>
+          <td>
+            {% if s.score >= 80 %}
+              <span class="badge badge-ok">{{ s.score }}</span>
+            {% elif s.score >= 60 %}
+              <span class="badge badge-warning">{{ s.score }}</span>
+            {% else %}
+              <span class="badge badge-expired">{{ s.score }}</span>
+            {% endif %}
+          </td>
+          <td>{{ s.trips }}</td>
+          <td>{{ s.distance_km|floatformat:1 }}</td>
+          <td>
+            {% if s.speeding_events > 0 %}
+              <span style="color:#dc2626;font-weight:600;">{{ s.speeding_events }}</span>
+            {% else %}0{% endif %}
+          </td>
+          <td>
+            {% if s.harsh_accel_events > 0 %}
+              <span style="color:#f59e0b;font-weight:600;">{{ s.harsh_accel_events }}</span>
+            {% else %}0{% endif %}
+          </td>
+          <td>{{ s.idling_minutes|floatformat:0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:48px;">
+    <p style="color:var(--text-muted);">No score data for this driver in the last 30 days.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

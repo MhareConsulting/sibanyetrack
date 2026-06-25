@@ -1,0 +1,36 @@
+# Environment — never commit real secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Django
+static_collected/
+media/
+
+# Database
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker volumes (local)
+traccar_data/
+pgdata/
+
+# Generated from traccar/traccar.xml.tpl — never commit
+traccar/traccar.xml

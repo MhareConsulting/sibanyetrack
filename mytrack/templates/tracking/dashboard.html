@@ -1,0 +1,1385 @@
+{% extends "base.html" %}
+{% block title %}Live Map — myTrack{% endblock %}
+{% block page_title %}Live Map{% endblock %}
+
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+#map { height: 100%; border-radius: 0; }
+
+.live-shell {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  height: 100%;
+  position: relative;
+}
+
+/* ── Panel resize handle ─────────────────────────────────────────────────── */
+.panel-resize-handle {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  cursor: col-resize; z-index: 10;
+  background: transparent;
+  transition: background 150ms;
+}
+.panel-resize-handle:hover, .panel-resize-handle.dragging { background: var(--mh-peri, #7c3aed44); }
+
+/* ── Map toolbar overlay ─────────────────────────────────────────────────── */
+.map-toolbar {
+  position: absolute;
+  top: 12px; left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 10px;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.76rem;
+  color: var(--mh-ink);
+  box-shadow: 0 1px 6px rgba(0,0,0,.09);
+}
+.map-toolbar label {
+  display: flex; align-items: center; gap: 5px;
+  cursor: pointer; user-select: none;
+}
+.map-toolbar input[type=checkbox] {
+  accent-color: var(--mh-peri); width: 13px; height: 13px;
+}
+.map-style-picker {
+  position: absolute;
+  bottom: 28px; left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+.map-style-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.71rem; font-weight: 600;
+  border: 1.5px solid var(--border-soft);
+  background: rgba(255,255,255,0.95);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.map-style-btn:hover { background: #fff; color: var(--mh-ink); }
+.map-style-btn.active { background: var(--mh-peri); color: #fff; border-color: var(--mh-peri); }
+
+/* ── Right panel ─────────────────────────────────────────────────────────── */
+.right-panel {
+  background: #fff;
+  border-left: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: relative; /* needed for resize handle positioning */
+  min-width: 260px;
+}
+.panel-context {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.context-head {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-soft, #f8f8f9);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.context-head-main { min-width: 0; }
+.context-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--mh-ink);
+}
+.context-crumbs {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.context-back-btn {
+  display: none;
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.context-back-btn.visible { display: inline-block; }
+.context-back-btn:hover {
+  color: var(--mh-ink);
+  border-color: var(--mh-peri);
+  background: var(--mh-peri-soft);
+}
+.context-view {
+  display: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+.context-view.active { display: block; }
+#ctx-points.active {
+  display: flex;
+  flex-direction: column;
+}
+#tp-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.rp-badge {
+  font-size: 0.67rem; font-weight: 700; padding: 1px 7px;
+  border-radius: 999px; background: #d1fae5; color: #065f46;
+}
+
+/* Vehicle list */
+.vlist-search {
+  display: block;
+  margin: 7px 8px 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  font-size: 0.79rem;
+  width: calc(100% - 16px);
+  box-sizing: border-box;
+  outline: none;
+}
+.vlist-search:focus { border-color: var(--mh-peri); }
+
+.vehicle-list { padding: 4px 6px 8px; }
+.vehicle-card {
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  transition: background 100ms; border: 1.5px solid transparent;
+  margin-bottom: 3px;
+}
+.vehicle-card:hover  { background: var(--mh-peri-soft); }
+.vehicle-card.selected { background: var(--mh-peri-soft); border-color: var(--mh-peri); }
+.vc-row { display: flex; align-items: center; gap: 7px; }
+.vc-label {
+  font-size: 0.82rem; font-weight: 600; color: var(--mh-ink);
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vc-age  { font-size: 0.68rem; color: var(--text-muted); white-space: nowrap; }
+.vc-driver {
+  font-size: 0.71rem; color: var(--text-muted); margin-top: 2px; margin-left: 15px;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vc-speed { font-size: 0.68rem; color: var(--text-soft); white-space: nowrap; }
+.stream-msg {
+  padding: 20px 14px; text-align: center; font-size: 0.81rem; color: var(--text-muted);
+}
+
+/* ── Tracks section ──────────────────────────────────────────────────────── */
+.tracks-empty {
+  padding: 16px 14px; font-size: 0.78rem; color: var(--text-muted); text-align: center;
+}
+.tracks-controls { padding: 10px 12px; }
+.tracks-row {
+  display: flex; align-items: center; gap: 5px;
+  margin-bottom: 6px; font-size: 0.74rem; color: var(--text-muted);
+}
+.tracks-row label { width: 32px; flex-shrink: 0; font-size: 0.72rem; }
+.tracks-row input[type=date],
+.tracks-row input[type=time] {
+  flex: 1; border: 1px solid var(--border-soft); border-radius: 5px;
+  padding: 3px 5px; font-size: 0.72rem; outline: none;
+  color: var(--mh-ink);
+}
+.tracks-row input:focus { border-color: var(--mh-peri); }
+
+.tracks-btns { display: flex; gap: 6px; margin-top: 8px; }
+.tracks-btns button {
+  flex: 1; padding: 5px 0; border-radius: 6px;
+  font-size: 0.73rem; font-weight: 600; cursor: pointer;
+  border: 1.5px solid var(--border-soft); background: #fff; color: var(--mh-ink);
+  transition: background 100ms, border-color 100ms;
+}
+.tracks-btns button:hover:not(:disabled) { background: var(--mh-peri-soft); border-color: var(--mh-peri); }
+.tracks-btns button.primary { background: var(--mh-peri); color: #fff; border-color: var(--mh-peri); }
+.tracks-btns button.primary:hover { opacity: 0.88; }
+.tracks-btns button:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* Replay controls bar */
+.replay-bar {
+  display: none; align-items: center; gap: 7px;
+  padding: 7px 12px; border-top: 1px solid var(--border-soft);
+  background: var(--bg-soft, #f8f8f9);
+}
+.replay-bar.active { display: flex; }
+#replay-play-btn {
+  padding: 3px 11px; border-radius: 6px; font-size: 0.73rem; font-weight: 600;
+  border: 1.5px solid var(--mh-peri); background: var(--mh-peri); color: #fff; cursor: pointer;
+}
+#replay-speed {
+  border: 1px solid var(--border-soft); border-radius: 5px;
+  padding: 3px 5px; font-size: 0.71rem; outline: none;
+}
+.replay-time-lbl { flex: 1; text-align: right; font-size: 0.69rem; color: var(--text-muted); font-family: monospace; }
+
+/* Trip list */
+.trip-list { padding: 4px 6px 6px; border-top: 1px solid var(--border-soft); }
+.trip-row {
+  display: grid;
+  grid-template-columns: 9px 1fr auto;
+  align-items: center; gap: 7px;
+  padding: 5px 8px; border-radius: 7px; cursor: pointer;
+  border: 1.5px solid transparent; margin-bottom: 2px;
+  font-size: 0.75rem; transition: background 100ms;
+}
+.trip-row:hover { background: var(--mh-peri-soft); }
+.trip-row.selected { background: var(--mh-peri-soft); border-color: var(--mh-peri); }
+.trip-row.minor { opacity: 0.55; }
+.trip-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.trip-name  { font-weight: 600; color: var(--mh-ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-meta  { font-size: 0.67rem; color: var(--text-muted); white-space: nowrap; text-align: right; }
+.trip-meta .active-badge { color: #22c55e; font-weight: 700; }
+.tracks-msg { padding: 10px 12px; font-size: 0.76rem; color: var(--text-muted); text-align: center; }
+
+/* Vehicle car marker */
+.vehicle-marker { cursor: pointer; filter: drop-shadow(0 1px 4px rgba(0,0,0,.4)); }
+.vehicle-marker .car-svg { display: block; transition: transform 0.4s ease; }
+
+/* ── Track points section ────────────────────────────────────────────────── */
+.tp-toolbar {
+  display: flex; gap: 6px; padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-top: 6px;
+}
+.tp-btn {
+  padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+  border: 1.5px solid var(--border-soft); background: #fff; cursor: pointer;
+  color: var(--mh-ink); transition: background 100ms;
+}
+.tp-btn:hover { background: var(--mh-peri-soft); border-color: var(--mh-peri); }
+
+.tp-table-wrap {
+  min-height: 180px;
+  max-height: none;
+  overflow-y: auto;
+  resize: none; /* height set by drag handle */
+}
+.tp-table tr { cursor: pointer; }
+.tp-table tr:hover td { background: var(--mh-peri-soft, #ede9fe); }
+.tp-table tr.active-ping td { background: rgba(138,43,226,0.12); font-weight: 600; }
+
+/* vertical resize handle (table & graph) */
+.v-resize-handle {
+  height: 5px; cursor: ns-resize;
+  background: transparent; transition: background 150ms;
+  border-top: 1px solid var(--border-soft);
+}
+.v-resize-handle:hover, .v-resize-handle.dragging { background: var(--mh-peri, #7c3aed44); }
+.tp-table { width: 100%; border-collapse: collapse; font-size: 0.71rem; }
+.tp-table th {
+  position: sticky; top: 0; background: var(--bg-soft, #f8f8f9);
+  padding: 5px 8px; text-align: left; font-weight: 700;
+  color: var(--text-muted); border-bottom: 1px solid var(--border-soft);
+  font-size: 0.67rem; text-transform: uppercase; letter-spacing: .4px;
+}
+.tp-table td { padding: 4px 8px; border-bottom: 1px solid var(--border-soft); color: var(--mh-ink); }
+.tp-table tr:last-child td { border-bottom: none; }
+.tp-empty { padding: 16px; text-align: center; font-size: 0.76rem; color: var(--text-muted); }
+
+/* expand icon on the graph toolbar */
+.graph-expand-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted, #888); font-size: 14px; line-height: 1;
+  padding: 2px 4px; border-radius: 4px;
+  opacity: 0.6; transition: opacity 120ms;
+}
+.graph-expand-btn:hover { opacity: 1; }
+
+/* ── Metrics drawer ───────────────────────────────────────────────────────── */
+.metrics-drawer {
+  border-top: 1px solid var(--border-soft);
+  background: #fff;
+  display: none;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.metrics-drawer.open { display: flex; }
+.metrics-drawer-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg-soft, #f8f8f9);
+}
+.metrics-title {
+  font-size: 0.78rem; font-weight: 700; color: var(--mh-ink); flex: 1;
+}
+.metrics-subtitle {
+  font-size: 0.69rem;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.metrics-signal {
+  font-size: 0.72rem; border: 1px solid var(--border-soft);
+  border-radius: 5px; padding: 2px 6px; background: #fff;
+  color: var(--mh-ink); outline: none; cursor: pointer;
+}
+.metrics-signal:focus { border-color: var(--mh-peri); }
+.metrics-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 14px; line-height: 1;
+  padding: 2px 5px; border-radius: 4px; transition: color 100ms, background 100ms;
+}
+.metrics-btn:hover { color: var(--mh-ink); background: var(--mh-peri-soft); }
+.metrics-drawer-body {
+  padding: 14px 12px 10px;
+  height: 220px;
+}
+
+@media (max-width: 900px) {
+  .live-shell { grid-template-columns: 1fr; }
+  .right-panel { display: none; }
+  .map-toolbar { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-fullbleed live-shell">
+
+  <!-- ── Map ─────────────────────────────────────────────────────────────── -->
+  <div style="position:relative;">
+    <div id="map" style="height:100%;border-radius:0;"></div>
+    <div class="map-toolbar">
+      <label><input type="checkbox" id="chk-follow"> Follow selected</label>
+      <label><input type="checkbox" id="chk-trace"> Show trace</label>
+    </div>
+    <div class="map-style-picker">
+      <button class="map-style-btn active" id="msb-street"    onclick="setMapStyle('street')">Street</button>
+      <button class="map-style-btn"        id="msb-satellite" onclick="setMapStyle('satellite')">Satellite</button>
+      <button class="map-style-btn"        id="msb-dark"      onclick="setMapStyle('dark')">Dark</button>
+    </div>
+  </div>
+
+  <!-- ── Right panel ───────────────────────────────────────────────────────── -->
+  <div class="right-panel" id="right-panel">
+    <div class="panel-resize-handle" id="panel-resize-handle"></div>
+    <div class="panel-context">
+      <div class="context-head">
+        <div class="context-head-main">
+          <div class="context-title" id="context-title">
+            Vehicles <span id="online-badge" class="rp-badge">0</span>
+          </div>
+          <div class="context-crumbs" id="context-crumbs">Vehicle</div>
+        </div>
+        <button class="context-back-btn" id="context-back-btn" onclick="renderContextView('vehicles')">Vehicles</button>
+      </div>
+
+      <div class="context-view active" id="ctx-vehicles">
+        <input class="vlist-search" id="vehicle-search" type="text" placeholder="Search vehicles..." oninput="filterVehicles(this.value)">
+        <div class="vehicle-list" id="vehicle-list">
+          <div class="stream-msg">Connecting to live stream...</div>
+        </div>
+      </div>
+
+      <div class="context-view" id="ctx-tracks">
+        <div id="tracks-body">
+          <div class="tracks-empty">Select a vehicle to load tracks.</div>
+        </div>
+      </div>
+
+      <div class="context-view" id="ctx-points">
+        <div id="tp-body">
+          <div class="tp-empty">Select a trip to view points.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="metrics-drawer" id="metrics-drawer">
+      <div class="metrics-drawer-head">
+        <span class="metrics-title">Trip metrics</span>
+        <span class="metrics-subtitle" id="metrics-subtitle">No point selected</span>
+        <select class="metrics-signal" id="metrics-signal" onchange="onSignalChange()">
+          <option value="speed">Speed (km/h)</option>
+          <option value="fuel">Fuel Level (L)</option>
+        </select>
+        <button class="metrics-btn" title="Close" onclick="closeMetricsDrawer()">&#x2715;</button>
+      </div>
+      <div class="metrics-drawer-body" id="metrics-drawer-body">
+        <canvas id="metrics-canvas"></canvas>
+      </div>
+    </div>
+  </div><!-- /right-panel -->
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+{% include "tracking/snippets/trip_route_stops.js.inc" %}
+
+// ── SSE — created first so a MapLibre CDN failure can't prevent it ─────────
+let _es = null;
+function connectLiveStream() {
+  if (_es) { _es.close(); }
+  _es = new EventSource("{% url 'live-stream' %}");
+  _es.onmessage = e => { try { renderVehicles(JSON.parse(e.data)); } catch(_) {} };
+  _es.onerror   = () => { _es.close(); setTimeout(connectLiveStream, 5000); };
+}
+connectLiveStream();
+
+// ── Map styles ─────────────────────────────────────────────────────────────
+const MAP_STYLES = {
+  street: {
+    version: 8,
+    sources: { osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }},
+    layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+  },
+  dark: {
+    version: 8,
+    sources: { carto: {
+      type: 'raster',
+      tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }},
+    layers: [{ id: 'carto-dark', type: 'raster', source: 'carto' }]
+  },
+  satellite: {
+    version: 8,
+    sources: { satellite: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      attribution: 'Tiles &copy; Esri'
+    }},
+    layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }]
+  }
+};
+let currentStyle = 'street';
+let geofenceData = null;
+
+function setMapStyle(name) {
+  if (name === currentStyle) return;
+  currentStyle = name;
+  document.querySelectorAll('.map-style-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('msb-' + name).classList.add('active');
+  // Trip layers become stale after style change — clear them
+  drawnTripIds = [];
+  traceCoords  = {};
+  if (pingPopup) { pingPopup.remove(); pingPopup = null; }
+  map.setStyle(MAP_STYLES[name]);
+}
+
+// ── Map init ───────────────────────────────────────────────────────────────
+let map;
+try {
+  map = new maplibregl.Map({
+    container: 'map',
+    style: MAP_STYLES.street,
+    center: [28.0473, -26.2041],
+    zoom: 10,
+  });
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+} catch (mapErr) {
+  console.error('MapLibre failed to initialise:', mapErr);
+  document.getElementById('map').innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.85rem;color:#6b7280">Map unavailable — reload to retry.</div>';
+  // Create a no-op stub so map.* calls in helper functions don\'t throw
+  map = {
+    isStyleLoaded: () => false, getSource: () => null, getLayer: () => null,
+    addSource: () => {}, addLayer: () => {}, removeSource: () => {}, removeLayer: () => {},
+    setStyle: () => {}, flyTo: () => {}, easeTo: () => {}, fitBounds: () => {},
+    getZoom: () => 10, getCanvas: () => ({ style: {} }),
+    setPaintProperty: () => {}, on: () => {}, off: () => {},
+  };
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+const markers    = {};
+let allVehicles  = [];
+let selectedVId  = null;   // selected vehicle ID
+let selectedTId  = null;   // selected trip ID
+let contextView  = 'vehicles';
+
+// ── Cluster layer (zoom < 14) ────────────────────────────────────────────
+function initClusterLayer() {
+  if (map.getSource('vehicles-cluster')) return;
+  map.addSource('vehicles-cluster', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 50,
+  });
+  map.addLayer({ id: 'cluster-circles', type: 'circle', source: 'vehicles-cluster',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#8A2BE2',
+      'circle-radius': ['step', ['get', 'point_count'], 16, 5, 22, 20, 28],
+      'circle-opacity': 0.85,
+    },
+  });
+  map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'vehicles-cluster',
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': 13,
+    },
+    paint: { 'text-color': '#ffffff' },
+  });
+  map.on('click', 'cluster-circles', (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: ['cluster-circles'] });
+    const clusterId = features[0].properties.cluster_id;
+    map.getSource('vehicles-cluster').getClusterExpansionZoom(clusterId, (err, zoom) => {
+      if (!err) map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1 });
+    });
+  });
+  map.getCanvas().style.cursor = '';
+  map.on('mouseenter', 'cluster-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'cluster-circles', () => { map.getCanvas().style.cursor = ''; });
+}
+
+function updateClusterSource(vehicles) {
+  if (!map.isStyleLoaded()) return;
+  if (!map.getSource('vehicles-cluster')) initClusterLayer();
+  const zoom = map.getZoom();
+  // Hide individual markers at low zoom where clusters dominate
+  Object.values(markers).forEach(m => {
+    if (m.getElement) m.getElement().style.display = zoom >= 14 ? '' : 'none';
+  });
+  const features = vehicles
+    .filter(v => v.lat != null && v.lon != null)
+    .map(v => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
+      properties: { id: v.id, label: v.label },
+    }));
+  map.getSource('vehicles-cluster').setData({ type: 'FeatureCollection', features });
+}
+
+map.on('zoom', () => {
+  const zoom = map.getZoom();
+  Object.values(markers).forEach(m => {
+    if (m.getElement) m.getElement().style.display = zoom >= 14 ? '' : 'none';
+  });
+});
+map.on('load', initClusterLayer);
+let replayPings  = [];
+let replayIdx    = 0;
+let replayTimer  = null;
+let replayActive = false;
+let replayMarker = null;
+let traceCoords  = {};     // vehicleId → [[lon, lat], ...]
+const TRACE_MAX  = 30;
+let drawnTripIds = [];     // IDs of trip layers on map
+let isMetricsDrawerOpen = false;
+let activeSignal = 'speed';
+
+function renderContextView(nextView) {
+  contextView = nextView;
+  document.querySelectorAll('.context-view').forEach(el => el.classList.remove('active'));
+  document.getElementById(`ctx-${nextView}`)?.classList.add('active');
+
+  const v = allVehicles.find(x => x.id === selectedVId);
+  const titleEl = document.getElementById('context-title');
+  const crumbsEl = document.getElementById('context-crumbs');
+  const backBtn = document.getElementById('context-back-btn');
+  if (!titleEl || !crumbsEl || !backBtn) return;
+  backBtn.classList.toggle('visible', nextView !== 'vehicles');
+
+  if (nextView === 'vehicles') {
+    const online = allVehicles.filter(x => ageClass(x.last_seen) !== 'dot-offline').length;
+    titleEl.innerHTML = `Vehicles <span id="online-badge" class="rp-badge">${online}</span>`;
+    crumbsEl.textContent = 'Vehicle';
+    return;
+  }
+
+  const vehicleLabel = v?.label || 'Vehicle';
+  if (nextView === 'tracks') {
+    titleEl.textContent = vehicleLabel;
+    crumbsEl.textContent = 'Vehicle > Tracks';
+    return;
+  }
+
+  titleEl.textContent = vehicleLabel;
+  crumbsEl.textContent = `Vehicle > Tracks > ${selectedTId ? `Trip ${selectedTId}` : 'Points'}`;
+}
+
+function setMetricsDrawer(open) {
+  isMetricsDrawerOpen = open;
+  const drawer = document.getElementById('metrics-drawer');
+  if (!drawer) return;
+  drawer.classList.toggle('open', open && !!selectedTId);
+  const graphBtn = document.getElementById('graph-btn');
+  if (graphBtn) graphBtn.textContent = open ? 'Hide metrics' : 'Show metrics';
+  if (!open && floatChart) {
+    floatChart.destroy();
+    floatChart = null;
+  }
+}
+
+// ── Age helpers ────────────────────────────────────────────────────────────
+function ageClass(iso) {
+  if (!iso) return 'dot-offline';
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 120) return 'dot-online';
+  if (s < 600) return 'dot-stale';
+  return 'dot-offline';
+}
+function relTime(iso) {
+  if (!iso) return 'Never';
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60)   return `${s}s`;
+  if (s < 3600) return `${Math.floor(s/60)}m`;
+  return `${Math.floor(s/3600)}h`;
+}
+
+// ── Vehicle selection ──────────────────────────────────────────────────────
+function selectVehicle(id) {
+  if (selectedVId === id) return;
+  selectedVId = id;
+  selectedTId = null;
+  document.querySelectorAll('.vehicle-card').forEach(el => el.classList.remove('selected'));
+  document.getElementById(`vc-${id}`)?.classList.add('selected');
+
+  const v = allVehicles.find(x => x.id === id);
+  if (v && v.lat != null && v.lon != null) map.flyTo({ center: [v.lon, v.lat], zoom: 14, duration: 800 });
+
+  clearTripLayers();
+  stopReplay();
+  renderTracksPanel();
+  renderTpEmpty();
+  setMetricsDrawer(false);
+  document.getElementById('metrics-subtitle').textContent = 'No point selected';
+  renderContextView('tracks');
+}
+
+// ── Vehicle list rendering ─────────────────────────────────────────────────
+function filterVehicles(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.vehicle-card').forEach(el => {
+    el.style.display = el.dataset.label.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function renderVehicles(vehicles) {
+  allVehicles = vehicles;
+  const online = vehicles.filter(v => ageClass(v.last_seen) !== 'dot-offline').length;
+  const badge = document.getElementById('online-badge');
+  if (badge) badge.textContent = online;
+
+  const list   = document.getElementById('vehicle-list');
+  const search = document.getElementById('vehicle-search').value.toLowerCase();
+
+  if (!vehicles.length) {
+    list.innerHTML = '<div class="stream-msg">No vehicles tracked yet.</div>';
+    return;
+  }
+
+  // Clear initial "Connecting..." placeholder on first data
+  list.querySelectorAll('.stream-msg').forEach(el => el.remove());
+
+  // Sync cards (add/update/remove)
+  const incomingIds = new Set(vehicles.map(v => v.id));
+  list.querySelectorAll('.vehicle-card').forEach(el => {
+    if (!incomingIds.has(+el.dataset.id)) el.remove();
+  });
+
+  vehicles.forEach(v => {
+    const age  = ageClass(v.last_seen);
+    let card   = document.getElementById(`vc-${v.id}`);
+    if (!card) {
+      card = document.createElement('div');
+      card.id        = `vc-${v.id}`;
+      card.dataset.id    = v.id;
+      card.dataset.label = v.label;
+      card.onclick   = () => selectVehicle(v.id);
+      list.appendChild(card);
+    }
+    card.className    = `vehicle-card${selectedVId === v.id ? ' selected' : ''}`;
+    card.dataset.label = v.label;
+    card.style.display = v.label.toLowerCase().includes(search) ? '' : 'none';
+    card.innerHTML = `
+      <div class="vc-row">
+        <span class="status-dot ${age}"></span>
+        <span class="vc-label">${v.label}</span>
+        <span class="vc-age">${relTime(v.last_seen)}</span>
+      </div>
+      <div class="vc-row" style="margin-top:2px">
+        <span class="vc-driver">${v.driver || '—'}</span>
+        ${v.speed_kmh != null ? `<span class="vc-speed" style="margin-left:auto">${Math.round(v.speed_kmh)} km/h</span>` : ''}
+      </div>
+      ${v.address ? `<div style="font-size:0.67rem;color:var(--text-muted);margin-top:2px;margin-left:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.address}</div>` : ''}`;
+
+    // Map marker (only when position is known)
+    if (v.lat != null && v.lon != null) {
+      const heading = v.heading ?? 0;
+      if (markers[v.id]) {
+        markers[v.id].setLngLat([v.lon, v.lat]);
+        const svg = markers[v.id].getElement().querySelector('.car-svg');
+        if (svg) svg.style.transform = `rotate(${heading}deg)`;
+      } else {
+        const el = document.createElement('div');
+        el.className = 'vehicle-marker';
+        el.innerHTML = `<svg class="car-svg" xmlns="http://www.w3.org/2000/svg"
+            width="18" height="26" viewBox="0 0 18 26"
+            style="transform:rotate(${heading}deg)">
+          <rect x="2" y="4" width="14" height="18" rx="4" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/>
+          <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
+          <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
+          <rect x="5" y="2" width="8" height="3" rx="2" fill="#6d28d9"/>
+          <rect x="5" y="21" width="8" height="2.5" rx="1.5" fill="#6d28d9"/>
+          <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+          <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+          <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+          <rect x="15.5" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+        </svg>`;
+        markers[v.id] = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([v.lon, v.lat])
+          .setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(
+            `<strong style="font-family:Inter,sans-serif;font-size:12px">${v.label}</strong>` +
+            `<div style="font-family:Inter,sans-serif;font-size:11px;color:#6b7280;margin-top:2px">${v.driver || 'No driver'} · ${Math.round(v.speed_kmh||0)} km/h</div>`
+          ))
+          .addTo(map);
+        el.onclick = () => selectVehicle(v.id);
+      }
+    }
+
+    // Trace breadcrumbs
+    if (document.getElementById('chk-trace').checked && v.lat && v.lon) {
+      if (!traceCoords[v.id]) traceCoords[v.id] = [];
+      const last = traceCoords[v.id].at(-1);
+      if (!last || last[0] !== v.lon || last[1] !== v.lat) {
+        traceCoords[v.id].push([v.lon, v.lat]);
+        if (traceCoords[v.id].length > TRACE_MAX) traceCoords[v.id].shift();
+      }
+    }
+
+    // Follow selected
+    if (document.getElementById('chk-follow').checked && selectedVId === v.id) {
+      map.easeTo({ center: [v.lon, v.lat], duration: 600 });
+    }
+  });
+
+  updateTrace();
+  updateClusterSource(allVehicles);
+  renderContextView(contextView);
+}
+
+// ── Show trace layer ───────────────────────────────────────────────────────
+function updateTrace() {
+  if (!map.isStyleLoaded()) return;
+  const show   = document.getElementById('chk-trace').checked && selectedVId;
+  const coords = show ? (traceCoords[selectedVId] || []) : [];
+  const geojson = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
+  const src = map.getSource('trace-line');
+  if (src) {
+    src.setData(geojson);
+  } else {
+    map.addSource('trace-line', { type: 'geojson', data: geojson });
+    map.addLayer({ id: 'trace-layer', type: 'line', source: 'trace-line',
+      paint: { 'line-color': '#00C8FF', 'line-width': 2.5, 'line-opacity': 0.55, 'line-dasharray': [2, 2] } });
+  }
+}
+
+document.getElementById('chk-trace').addEventListener('change', e => {
+  if (!e.target.checked) { traceCoords = {}; updateTrace(); }
+});
+
+// ── Geofence overlay ───────────────────────────────────────────────────────
+function addGeofenceLayers() {
+  if (!geofenceData || !geofenceData.features.length) return;
+  if (map.getSource('geofences')) return;
+  map.addSource('geofences', { type: 'geojson', data: geofenceData });
+  map.addLayer({ id: 'geofence-fill',   type: 'fill', source: 'geofences',
+    paint: { 'fill-color': '#8A2BE2', 'fill-opacity': 0.07 } });
+  map.addLayer({ id: 'geofence-border', type: 'line', source: 'geofences',
+    paint: { 'line-color': '#8A2BE2', 'line-width': 1.5, 'line-dasharray': [3, 2] } });
+}
+
+map.on('load', () => {
+  fetch("{% url 'geofences-geojson' %}")
+    .then(r => r.json())
+    .then(data => {
+      geofenceData = data;
+      addGeofenceLayers();
+      if (!geofenceData.features.length) return;
+      const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+      map.on('mouseenter', 'geofence-fill', e => {
+        map.getCanvas().style.cursor = 'pointer';
+        popup.setLngLat(e.lngLat)
+             .setHTML(`<span style="font-family:Inter,sans-serif;font-size:12px;font-weight:600">${e.features[0].properties.name}</span>`)
+             .addTo(map);
+      });
+      map.on('mouseleave', 'geofence-fill', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
+    });
+});
+
+map.on('style.load', () => {
+  addGeofenceLayers();
+});
+
+// ── Tracks panel ───────────────────────────────────────────────────────────
+function renderTracksPanel() {
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  document.getElementById('tracks-body').innerHTML = `
+    <div class="tracks-controls">
+      <div class="tracks-row">
+        <label>Start</label>
+        <input type="date" id="tr-d0" value="${yesterday}">
+        <input type="time" id="tr-t0" value="00:00">
+      </div>
+      <div class="tracks-row">
+        <label>Stop</label>
+        <input type="date" id="tr-d1" value="${today}">
+        <input type="time" id="tr-t1" value="23:59">
+      </div>
+      <div class="tracks-btns">
+        <button class="primary" onclick="drawTracks()">Draw tracks</button>
+        <button id="replay-btn" onclick="startReplay()" disabled>Replay</button>
+      </div>
+    </div>
+    <div id="replay-bar" class="replay-bar">
+      <button id="replay-play-btn" onclick="toggleReplay()">⏸ Pause</button>
+      <select id="replay-speed">
+        <option value="1">1×</option>
+        <option value="5">5×</option>
+        <option value="20">20×</option>
+        <option value="50">50×</option>
+      </select>
+      <span class="replay-time-lbl" id="replay-time-lbl">—</span>
+    </div>
+    <div class="trip-list" id="trip-list">
+      <div class="tracks-msg">Set dates and click Draw tracks.</div>
+    </div>`;
+}
+
+function isoFromInputs(dId, tId) {
+  const d = document.getElementById(dId)?.value;
+  const t = document.getElementById(tId)?.value || '00:00';
+  return d ? `${d}T${t}:00` : '';
+}
+
+const TRIP_COLORS = ['#8A2BE2','#00C8FF','#22c55e','#f59e0b','#ef4444','#ec4899'];
+
+async function drawTracks() {
+  if (!selectedVId) return;
+  clearTripLayers();
+  stopReplay();
+
+  const start = isoFromInputs('tr-d0', 'tr-t0');
+  const stop  = isoFromInputs('tr-d1', 'tr-t1');
+  const url   = `/api/vehicles/${selectedVId}/trips/?start=${encodeURIComponent(start)}&end=${encodeURIComponent(stop)}`;
+
+  const tripList = document.getElementById('trip-list');
+  tripList.innerHTML = '<div class="tracks-msg">Loading…</div>';
+
+  const res = await fetch(url);
+  if (!res.ok) { tripList.innerHTML = '<div class="tracks-msg">Failed to load trips.</div>'; return; }
+  const data = await res.json();
+
+  if (!data.trips.length) {
+    tripList.innerHTML = '<div class="tracks-msg">No trips in this range.</div>';
+    return;
+  }
+
+  tripList.innerHTML = '';
+  let firstBounds = true;
+
+  data.trips.forEach((trip, i) => {
+    const color = TRIP_COLORS[i % TRIP_COLORS.length];
+    const startT = trip.start ? new Date(trip.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—';
+    const isActive = !trip.stop;
+
+    // Duration string
+    let metaText = '';
+    if (trip.start && trip.stop) {
+      const diffMs = new Date(trip.stop) - new Date(trip.start);
+      const totalMin = Math.round(diffMs / 60000);
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      const durStr = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+      const distStr = trip.dist_km != null ? ` · ${trip.dist_km} km` : '';
+      metaText = durStr + distStr;
+    } else if (isActive) {
+      metaText = '<span class="active-badge">● live</span>';
+    }
+
+    const isMinor = !isActive && (trip.dist_km == null || trip.dist_km < 0.2);
+    const row = document.createElement('div');
+    row.className = `trip-row${selectedTId === trip.id ? ' selected' : ''}${isMinor ? ' minor' : ''}`;
+    row.id        = `tr-${trip.id}`;
+    row.innerHTML = `
+      <span class="trip-dot" style="background:${color}"></span>
+      <span class="trip-name">Trip ${startT}</span>
+      <span class="trip-meta">${metaText}</span>`;
+    row.onclick = () => selectTrip(trip.id);
+    tripList.appendChild(row);
+
+    // Draw polyline
+    fetch(`/api/trips/${trip.id}/pings/?snap=roads`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.pings.length) return;
+        const coords = d.pings
+          .map((p) => [p.lon, p.lat])
+          .filter((c) => c[0] != null && c[1] != null);
+        if (coords.length < 2) return;
+        drawnTripIds.push(trip.id);
+        const paintTrip = () => {
+          addMaplibreTripRouteVisuals(map, `trip-${trip.id}`, d.pings, color, d.snapped_coords);
+          if (firstBounds) {
+            firstBounds = false;
+            const lngs = coords.map((c) => c[0]);
+            const lats = coords.map((c) => c[1]);
+            map.fitBounds(
+              [
+                [Math.min(...lngs), Math.min(...lats)],
+                [Math.max(...lngs), Math.max(...lats)],
+              ],
+              { padding: 60 }
+            );
+          }
+        };
+        const scheduleTripPaint = (fn) => {
+          const run = () => requestAnimationFrame(fn);
+          if (map.isStyleLoaded()) {
+            run();
+            return;
+          }
+          const onStyle = () => {
+            if (!map.isStyleLoaded()) return;
+            map.off('styledata', onStyle);
+            run();
+          };
+          map.on('styledata', onStyle);
+        };
+        scheduleTripPaint(paintTrip);
+      });
+  });
+}
+
+function clearTripLayers() {
+  drawnTripIds.forEach((id) => {
+    removeMaplibreTripRouteVisuals(map, `trip-${id}`);
+  });
+  drawnTripIds = [];
+}
+
+// ── Trip selection → track points ──────────────────────────────────────────
+async function selectTrip(tripId) {
+  selectedTId = tripId;
+  clearPingHighlight();
+  document.querySelectorAll('.trip-row').forEach(el => el.classList.remove('selected'));
+  document.getElementById(`tr-${tripId}`)?.classList.add('selected');
+
+  const replayBtn = document.getElementById('replay-btn');
+  if (replayBtn) replayBtn.disabled = false;
+
+  const res = await fetch(`/api/trips/${tripId}/pings/`);
+  if (!res.ok) return;
+  const data = await res.json();
+  replayPings = data.pings;
+  renderTrackPoints(data.pings);
+  renderContextView('points');
+  openMetricsDrawer();
+}
+
+function renderTpEmpty() {
+  document.getElementById('tp-body').innerHTML = '<div class="tp-empty">Select a trip to view points.</div>';
+  closeMetricsDrawer();
+  if (floatChart) { floatChart.destroy(); floatChart = null; }
+}
+
+function renderTrackPoints(pings) {
+  document.getElementById('tp-body').innerHTML = `
+    <div class="tp-toolbar">
+      <button class="tp-btn" onclick="exportCSV()">Export CSV</button>
+      <button class="tp-btn" id="graph-btn" onclick="toggleGraph()">${isMetricsDrawerOpen ? 'Hide metrics' : 'Show metrics'}</button>
+    </div>
+    <div class="tp-table-wrap" id="tp-table-wrap">
+      <table class="tp-table">
+        <thead><tr><th>Date</th><th>Time</th><th>Speed</th><th>Engine</th></tr></thead>
+        <tbody id="tp-tbody"></tbody>
+      </table>
+    </div>
+    <div class="v-resize-handle" id="table-resize-handle"></div>`;
+
+  const tbody = document.getElementById('tp-tbody');
+  pings.forEach((p, i) => {
+    const ts    = p.ts ? new Date(p.ts) : null;
+    const date  = ts ? ts.toLocaleDateString()  : '—';
+    const time  = ts ? ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '—';
+    const speed = p.speed_kmh != null ? Math.round(p.speed_kmh) + ' km/h' : '—';
+    const eng   = (p.speed_kmh != null && p.speed_kmh > 0) ? '🟢' : '⚫';
+    const tr    = document.createElement('tr');
+    tr.innerHTML = `<td>${date}</td><td>${time}</td><td>${speed}</td><td>${eng}</td>`;
+    tr.addEventListener('click', () => highlightPingOnMap(i));
+    tbody.appendChild(tr);
+  });
+
+  attachTableResize();
+}
+
+// ── CSV export ─────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!replayPings.length) return;
+  const rows = [['Date','Time','Lat','Lon','Speed (km/h)','Heading']];
+  replayPings.forEach(p => {
+    const ts = p.ts ? new Date(p.ts) : null;
+    rows.push([
+      ts ? ts.toLocaleDateString() : '',
+      ts ? ts.toLocaleTimeString() : '',
+      p.lat, p.lon,
+      p.speed_kmh != null ? Math.round(p.speed_kmh) : '',
+      p.heading   != null ? Math.round(p.heading)   : '',
+    ]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a   = document.createElement('a');
+  a.href     = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `trip-${selectedTId}-points.csv`;
+  a.click();
+}
+
+// ── Speed graph ────────────────────────────────────────────────────────────
+function toggleGraph() {
+  if (isMetricsDrawerOpen) {
+    closeMetricsDrawer();
+    document.getElementById('graph-btn').textContent = 'Show metrics';
+  } else {
+    openMetricsDrawer();
+    document.getElementById('graph-btn').textContent = 'Hide metrics';
+  }
+}
+
+const SPEED_LIMIT_KMH = {{ speed_limit_kmh }};
+
+
+// ── Ping highlight on map ──────────────────────────────────────────────────
+let pingPopup = null;
+const PING_SRC   = 'ping-hl';
+const PING_LAYER = 'ping-hl-circle';
+
+function ensurePingLayer() {
+  if (map.getSource(PING_SRC)) return;
+  map.addSource(PING_SRC, {
+    type: 'geojson',
+    data: { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] } }
+  });
+  map.addLayer({
+    id: PING_LAYER, type: 'circle', source: PING_SRC,
+    paint: {
+      'circle-radius': 9,
+      'circle-color': '#f59e0b',
+      'circle-stroke-color': '#fff',
+      'circle-stroke-width': 3,
+      'circle-opacity': 0,
+      'circle-stroke-opacity': 0,
+    }
+  });
+}
+
+function highlightPingOnMap(idx) {
+  const p = replayPings[idx];
+  if (!p || p.lat == null || p.lon == null) return;
+
+  // highlight active row and scroll it into view
+  document.querySelectorAll('#tp-tbody tr').forEach((r, i) => r.classList.toggle('active-ping', i === idx));
+  document.querySelector('#tp-tbody tr.active-ping')?.scrollIntoView({ block: 'nearest' });
+
+  const ts     = p.ts ? new Date(p.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '—';
+  const speed  = p.speed_kmh != null ? Math.round(p.speed_kmh) + ' km/h' : '—';
+  const lngLat = [p.lon, p.lat];
+  const subtitle = document.getElementById('metrics-subtitle');
+  if (subtitle) subtitle.textContent = `${ts} • ${speed}`;
+
+  // draw circle directly on the track line
+  ensurePingLayer();
+  map.getSource(PING_SRC).setData({ type: 'Feature', geometry: { type: 'Point', coordinates: lngLat } });
+  map.setPaintProperty(PING_LAYER, 'circle-opacity', 1);
+  map.setPaintProperty(PING_LAYER, 'circle-stroke-opacity', 1);
+
+  if (!pingPopup) pingPopup = new maplibregl.Popup({ offset: 16, closeButton: false });
+  pingPopup
+    .setLngLat(lngLat)
+    .setHTML(`<div style="font-size:0.75rem;line-height:1.6"><b>${ts}</b><br>${speed}</div>`)
+    .addTo(map);
+
+  map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 14), duration: 400 });
+}
+
+function clearPingHighlight() {
+  if (map.getLayer(PING_LAYER)) {
+    map.setPaintProperty(PING_LAYER, 'circle-opacity', 0);
+    map.setPaintProperty(PING_LAYER, 'circle-stroke-opacity', 0);
+  }
+  if (pingPopup) pingPopup.remove();
+  document.querySelectorAll('#tp-tbody tr').forEach(r => r.classList.remove('active-ping'));
+}
+
+// ── Vertical resize (table & graph) ───────────────────────────────────────
+function attachVerticalResize(handleId, targetId, minH, maxH) {
+  const handle = document.getElementById(handleId);
+  const target = document.getElementById(targetId);
+  if (!handle || !target) return;
+  let dragging = false;
+  let startY, startH;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true; startY = e.clientY; startH = target.offsetHeight;
+    handle.classList.add('dragging'); e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const newH = Math.max(minH, Math.min(maxH, startH + (e.clientY - startY)));
+    target.style.maxHeight = newH + 'px';
+    target.style.height    = newH + 'px';
+    if (floatChart) floatChart.resize();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; handle.classList.remove('dragging');
+  });
+}
+
+function attachTableResize() { attachVerticalResize('table-resize-handle', 'tp-table-wrap', 80, 500); }
+
+// ── Floating graph panel ───────────────────────────────────────────────────
+let floatChart    = null;
+let fuelReadings  = [];   // cached fuel readings for current vehicle/range
+
+function openMetricsDrawer() {
+  if (!selectedTId || !replayPings.length) return;
+  const signal = document.getElementById('metrics-signal');
+  if (signal) signal.value = activeSignal;
+  setMetricsDrawer(true);
+  buildFloatChart();
+}
+
+function closeMetricsDrawer() {
+  setMetricsDrawer(false);
+}
+
+async function onSignalChange() {
+  activeSignal = document.getElementById('metrics-signal').value;
+  if (floatChart) { floatChart.destroy(); floatChart = null; }
+  const signal = activeSignal;
+  if (signal === 'fuel') await fetchFuelReadings();
+  if (isMetricsDrawerOpen) buildFloatChart();
+}
+
+async function fetchFuelReadings() {
+  if (!selectedVId || !replayPings.length) return;
+  // determine day span of the current trip pings
+  const times  = replayPings.map(p => new Date(p.ts).getTime()).filter(Boolean);
+  const spanMs = Math.max(...times) - Math.min(...times);
+  const days   = Math.max(1, Math.ceil(spanMs / 86400000) + 1);
+  try {
+    const res  = await fetch(`/fuel/api/vehicles/${selectedVId}/readings/?days=${days}`);
+    const data = await res.json();
+    fuelReadings = data.readings || [];
+  } catch(_) {
+    fuelReadings = [];
+  }
+}
+
+function buildFloatChart() {
+  if (!replayPings.length) return;
+
+  const signal = document.getElementById('metrics-signal').value;
+  let labels, values, borderColor, bgColor, yLabel, extraDatasets = [];
+
+  if (signal === 'fuel') {
+    // Align fuel readings to ping timestamps by picking nearest reading within ±5 min
+    const pingTimes = replayPings.map(p => p.ts ? new Date(p.ts).getTime() : null);
+    const tripStart = Math.min(...pingTimes.filter(Boolean));
+    const tripEnd   = Math.max(...pingTimes.filter(Boolean));
+
+    // Filter readings to trip window (±buffer)
+    const buf     = 5 * 60 * 1000;
+    const inRange = fuelReadings.filter(r => {
+      const t = new Date(r.timestamp).getTime();
+      return t >= tripStart - buf && t <= tripEnd + buf;
+    });
+
+    if (!inRange.length) {
+      // No fuel data — show message in chart area
+      const body = document.getElementById('metrics-drawer-body');
+      if (floatChart) { floatChart.destroy(); floatChart = null; }
+      body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.8rem;color:var(--text-muted)">No fuel probe data for this trip.</div>';
+      return;
+    }
+    // Restore canvas if we replaced it with a message
+    const body = document.getElementById('metrics-drawer-body');
+    if (!body.querySelector('canvas')) {
+      body.innerHTML = '<canvas id="metrics-canvas"></canvas>';
+    }
+    const freshCanvas = document.getElementById('metrics-canvas');
+
+    labels      = inRange.map(r => new Date(r.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    values      = inRange.map(r => r.fuel_level_litres);
+    borderColor = '#22c55e';
+    bgColor     = 'rgba(34,197,94,0.08)';
+    yLabel      = 'Litres';
+
+    floatChart = new Chart(freshCanvas, _floatChartConfig(labels, values, 'Fuel Level (L)', borderColor, bgColor, yLabel, [], true));
+    return;
+  }
+
+  // Speed (default)
+  labels      = replayPings.map(p => p.ts ? new Date(p.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '');
+  values      = replayPings.map(p => p.speed_kmh != null ? Math.round(p.speed_kmh) : 0);
+  borderColor = '#8A2BE2';
+  bgColor     = 'rgba(138,43,226,0.08)';
+  yLabel      = 'km/h';
+  extraDatasets = [{
+    label: `Limit (${SPEED_LIMIT_KMH} km/h)`,
+    data: labels.map(() => SPEED_LIMIT_KMH),
+    borderColor: '#ef4444', borderWidth: 1.5,
+    borderDash: [6, 4], pointRadius: 0, fill: false, tension: 0,
+  }];
+
+  // Restore canvas
+  const body = document.getElementById('metrics-drawer-body');
+  if (!body.querySelector('canvas')) {
+    body.innerHTML = '<canvas id="metrics-canvas"></canvas>';
+  }
+  floatChart = new Chart(document.getElementById('metrics-canvas'),
+    _floatChartConfig(labels, values, 'Speed (km/h)', borderColor, bgColor, yLabel, extraDatasets, false));
+}
+
+function _floatChartConfig(labels, values, dataLabel, borderColor, bgColor, yLabel, extraDatasets, clickable) {
+  return {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: dataLabel,
+          data: values,
+          borderColor,
+          backgroundColor: bgColor,
+          borderWidth: 1.8,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: true,
+        },
+        ...extraDatasets,
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: extraDatasets.length > 0, position: 'top', labels: { font: { size: 10 } } },
+        tooltip: { mode: 'index', intersect: false },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } },
+        y: { min: 0, ticks: { font: { size: 9 } }, title: { display: true, text: yLabel, font: { size: 9 } } },
+      },
+      animation: false,
+      onClick: clickable ? undefined : (e, elements) => {
+        if (elements.length) highlightPingOnMap(elements[0].index);
+      },
+    }
+  };
+}
+
+// ── Panel resize ───────────────────────────────────────────────────────────
+(function() {
+  const handle = document.getElementById('panel-resize-handle');
+  const shell  = document.querySelector('.live-shell');
+  let dragging = false;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const shellRect  = shell.getBoundingClientRect();
+    const newWidth   = Math.max(260, Math.min(640, shellRect.right - e.clientX));
+    shell.style.gridTemplateColumns = `1fr ${newWidth}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+  });
+})();
+
+// ── Replay ─────────────────────────────────────────────────────────────────
+function startReplay() {
+  if (!selectedTId || !replayPings.length) return;
+  stopReplay();
+
+  document.getElementById('replay-bar').classList.add('active');
+  replayIdx    = 0;
+  replayActive = true;
+  document.getElementById('replay-play-btn').textContent = '⏸ Pause';
+
+  if (replayMarker) replayMarker.remove();
+  const el = document.createElement('div');
+  el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#f59e0b;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.3);';
+  const first = replayPings[0];
+  replayMarker = new maplibregl.Marker({ element: el })
+    .setLngLat([first.lon, first.lat])
+    .addTo(map);
+  map.flyTo({ center: [first.lon, first.lat], zoom: 14, duration: 600 });
+
+  tickReplay();
+}
+
+function replayInterval() {
+  const mult = parseInt(document.getElementById('replay-speed')?.value || '1');
+  return Math.max(30, 1000 / mult);
+}
+
+function tickReplay() {
+  if (!replayActive || replayIdx >= replayPings.length) {
+    replayActive = false;
+    const btn = document.getElementById('replay-play-btn');
+    if (btn) btn.textContent = '▶ Play';
+    return;
+  }
+  const p  = replayPings[replayIdx];
+  replayMarker?.setLngLat([p.lon, p.lat]);
+  const ts  = p.ts ? new Date(p.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '—';
+  const lbl = document.getElementById('replay-time-lbl');
+  if (lbl) lbl.textContent = `${ts} · ${Math.round(p.speed_kmh||0)} km/h`;
+  replayIdx++;
+  replayTimer = setTimeout(tickReplay, replayInterval());
+}
+
+function toggleReplay() {
+  replayActive = !replayActive;
+  document.getElementById('replay-play-btn').textContent = replayActive ? '⏸ Pause' : '▶ Play';
+  if (replayActive) tickReplay();
+  else clearTimeout(replayTimer);
+}
+
+function stopReplay() {
+  clearTimeout(replayTimer);
+  replayActive = false;
+  replayIdx    = 0;
+  replayMarker?.remove();
+  replayMarker = null;
+  document.getElementById('replay-bar')?.classList.remove('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,688 @@
+{% extends "base.html" %}
+{% block title %}Route Dispatch — myTrack{% endblock %}
+{% block page_title %}Route Dispatch{% endblock %}
+
+{% block extra_head %}
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+/* ── Shell (reuse .dsp design system) ──────────────────────────────────────── */
+.dsp { --dsp-bg:#f4f5f9; --dsp-surface:#ffffff; --dsp-ring-track:#f0f2f5; }
+.dsp.dark {
+  --border:#252a3a; --border-soft:#1d2032; --text-muted:#8892a4; --text-soft:#5b6478;
+  --mh-ink:#e8eaf0; --dsp-bg:#0d0f18; --dsp-surface:#161927; --dsp-ring-track:#252a3a;
+  background:#0d0f18;
+}
+.dsp { display:flex; flex-direction:column; height:100%; overflow:hidden; background:var(--dsp-bg); }
+
+/* triage strip */
+.dsp-triage {
+  display:flex; gap:6px; align-items:center;
+  padding:7px 14px; background:var(--dsp-surface);
+  border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap;
+  transition:background 200ms, border-color 200ms;
+}
+.dsp-triage-brand { font-size:0.7rem; font-weight:800; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--text-muted); margin-right:4px; white-space:nowrap; }
+.dsp-triage-clock { margin-left:auto; font-family:monospace; font-size:0.82rem;
+  font-weight:700; color:var(--text-muted); letter-spacing:.04em; }
+.dsp-theme-btn {
+  width:30px; height:30px; border-radius:8px; border:1.5px solid var(--border);
+  background:var(--dsp-surface); color:var(--text-muted); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all 120ms; flex-shrink:0;
+}
+.dsp-theme-btn:hover { border-color:#7c3aed; color:#7c3aed; background:#faf5ff; }
+.dsp.dark .dsp-theme-btn:hover { background:#1e1640; }
+.dsp-pill {
+  display:inline-flex; align-items:center; gap:5px; padding:4px 12px;
+  border-radius:20px; cursor:pointer; font-size:0.75rem; font-weight:700;
+  border:1.5px solid transparent; transition:all 120ms; user-select:none;
+}
+.dsp-pill-all { color:#7c3aed; border-color:#ddd6fe; background:#faf5ff; }
+.dsp-pill-all:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.dsp.dark .dsp-pill-all { background:#160f2a; border-color:#3b2c6e; }
+
+/* main split */
+.dsp-main { flex:1; min-height:0; display:grid; grid-template-columns:40% 8px 60%; }
+.dsp-vdivider {
+  background:var(--border); cursor:col-resize;
+  display:flex; align-items:center; justify-content:center;
+  user-select:none; flex-shrink:0; z-index:5; transition:background 120ms;
+}
+.dsp-vdivider:hover,.dsp-vdivider.dragging { background:#c4b5fd; }
+.dsp-vdivider::after {
+  content:''; display:block; width:3px; height:32px;
+  border-radius:2px; background:#9ca3af;
+}
+.dsp-vdivider:hover::after,.dsp-vdivider.dragging::after { background:#7c3aed; }
+
+/* left panel */
+.dsp-queue {
+  overflow-y:auto; border-right:1px solid var(--border);
+  background:var(--dsp-surface); transition:background 200ms;
+}
+.dsp-queue-empty { padding:28px 18px; text-align:center; color:var(--text-muted); font-size:0.83rem; }
+
+/* map panel */
+.dsp-map-wrap { position:relative; overflow:hidden; }
+#dsp-map { width:100%; height:100%; }
+.dsp-map-fitbtn {
+  position:absolute; top:10px; left:10px; z-index:10;
+  background:#fff; border:1px solid var(--border); border-radius:8px;
+  padding:5px 12px; font-size:0.73rem; font-weight:700; cursor:pointer;
+  color:#7c3aed; box-shadow:0 1px 4px rgba(0,0,0,.12);
+  display:inline-flex; align-items:center; gap:5px;
+}
+.dsp-map-fitbtn:hover { background:#faf5ff; }
+.dsp.dark .dsp-map-fitbtn { background:#1e2234; color:#a78bfa; }
+.maplibregl-popup-content {
+  border-radius:8px !important; padding:10px 14px !important;
+  font-family:inherit !important; font-size:0.78rem !important;
+  box-shadow:0 4px 16px rgba(0,0,0,.14) !important; min-width:190px;
+}
+
+/* fullscreen */
+body.dsp-fullscreen .sidebar, body.dsp-fullscreen .topbar { display:none !important; }
+body.dsp-fullscreen .app { display:grid !important; grid-template-areas:'content' !important;
+  grid-template-rows:1fr !important; grid-template-columns:1fr !important; }
+body.dsp-fullscreen .content { grid-area:content; height:100vh; overflow:hidden; }
+
+/* ── Trip cards ────────────────────────────────────────────────────────────── */
+.rd-header {
+  position:sticky; top:0; z-index:2;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 14px; font-size:0.68rem; font-weight:800;
+  text-transform:uppercase; letter-spacing:.09em;
+  border-bottom:1px solid var(--border);
+  background:#f0f9ff; color:#0284c7;
+}
+.dsp.dark .rd-header { background:#0c1a2a; color:#38bdf8; }
+.rd-header-count { font-size:0.74rem; padding:1px 8px; border-radius:10px; font-weight:700; background:#0284c7; color:#fff; }
+
+.rd-card {
+  display:flex; flex-direction:column; gap:6px;
+  padding:12px 14px 12px 16px;
+  border-bottom:1px solid var(--border-soft);
+  border-left:4px solid #e5e7eb;
+  cursor:pointer; transition:background 100ms;
+}
+.rd-card:hover { background:#f8fafc; }
+.dsp.dark .rd-card:hover { background:#1c2035; }
+.rd-card.active { border-left-color:#7c3aed; background:#faf5ff; }
+.dsp.dark .rd-card.active { background:#1a1640; }
+
+.rd-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.rd-reg { font-size:0.97rem; font-weight:800; color:var(--mh-ink); letter-spacing:.02em; }
+.rd-driver { font-size:0.78rem; color:var(--text-muted); font-weight:500; }
+.rd-color-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-left:2px; }
+.rd-chips { margin-left:auto; display:flex; gap:5px; }
+
+.rd-chip {
+  font-size:0.67rem; font-weight:700; padding:2px 8px; border-radius:10px;
+  letter-spacing:.02em; white-space:nowrap;
+}
+.rd-chip-pre  { background:#e0f2fe; color:#0369a1; }
+.rd-chip-en   { background:#dbeafe; color:#1d4ed8; }
+.rd-chip-done { background:#dcfce7; color:#166534; }
+.rd-chip-ok   { background:#dcfce7; color:#166534; }
+.rd-chip-risk { background:#fef9c3; color:#854d0e; }
+.rd-chip-late { background:#fee2e2; color:#b91c1c; }
+.dsp.dark .rd-chip-pre  { background:#0c2233; color:#7dd3fc; }
+.dsp.dark .rd-chip-en   { background:#0c1a3d; color:#93c5fd; }
+.dsp.dark .rd-chip-done { background:#0a1a10; color:#86efac; }
+.dsp.dark .rd-chip-ok   { background:#0a1a10; color:#86efac; }
+.dsp.dark .rd-chip-risk { background:#1a1400; color:#fde68a; }
+.dsp.dark .rd-chip-late { background:#1a0808; color:#fca5a5; }
+
+.rd-progress-wrap { display:flex; align-items:center; gap:8px; }
+.rd-progress-bar { flex:1; height:6px; background:var(--dsp-ring-track); border-radius:4px; overflow:hidden; }
+.rd-progress-fill { height:100%; border-radius:4px; background:#7c3aed; transition:width 400ms; }
+.rd-progress-label { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; font-weight:600; }
+
+.rd-next { font-size:0.75rem; color:var(--text-muted); display:flex; gap:6px; flex-wrap:wrap; align-items:baseline; }
+.rd-next-label { font-weight:700; color:var(--mh-ink); font-size:0.73rem; }
+.rd-next-addr { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rd-next-eta { font-family:monospace; font-size:0.72rem; color:#0284c7; font-weight:700; white-space:nowrap; }
+.rd-next-late { color:#dc2626; }
+.rd-next-risk { color:#d97706; }
+
+/* stop pulse overlay */
+.rd-next-pulse {
+  width:14px; height:14px; border-radius:50%;
+  background:#f97316; border:2px solid #fff;
+  box-shadow:0 0 0 0 rgba(249,115,22,.7);
+  animation:rdping 1.4s ease-out infinite;
+}
+@keyframes rdping {
+  0%   { box-shadow:0 0 0 0 rgba(249,115,22,.7); }
+  70%  { box-shadow:0 0 0 10px rgba(249,115,22,0); }
+  100% { box-shadow:0 0 0 0 rgba(249,115,22,0); }
+}
+
+/* map stop legend */
+.rd-map-legend {
+  position:absolute; bottom:28px; left:12px; z-index:10;
+  background:rgba(255,255,255,.93); border-radius:8px;
+  border:1px solid var(--border); padding:7px 12px;
+  display:flex; flex-direction:column; gap:4px;
+  font-size:0.7rem; font-weight:600; box-shadow:0 1px 4px rgba(0,0,0,.12);
+}
+.dsp.dark .rd-map-legend { background:rgba(22,25,39,.93); color:var(--text-muted); }
+.rd-legend-row { display:flex; align-items:center; gap:6px; }
+.rd-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.rd-legend-sq  { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% load static %}
+<div class="dsp" id="dsp-root">
+
+  {# ── Triage strip ──────────────────────────────────── #}
+  <div class="dsp-triage">
+    <span class="dsp-triage-brand">Route Dispatch</span>
+
+    <button class="dsp-pill dsp-pill-all" id="dsp-fullscreen-btn"
+            onclick="toggleFullscreen()" title="Fullscreen (Esc to exit)"
+            style="padding:5px 10px">
+      <svg id="dsp-fs-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      <svg id="dsp-fs-collapse" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+    </button>
+
+    <button class="dsp-theme-btn" onclick="toggleTheme()" title="Toggle dark mode">
+      <svg id="dsp-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="dsp-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+
+    <span class="dsp-triage-clock" id="dsp-clock">--:--:--</span>
+  </div>
+
+  {# ── Main split ────────────────────────────────────── #}
+  <div class="dsp-main">
+
+    {# LEFT — Trip list #}
+    <div class="dsp-queue" id="rd-trip-list">
+      <div class="rd-header">
+        Today's Routes
+        <span class="rd-header-count" id="rd-count">0</span>
+      </div>
+      <div id="rd-cards"></div>
+    </div>
+
+    <div class="dsp-vdivider" id="dsp-vdivider"></div>
+
+    {# RIGHT — Map #}
+    <div class="dsp-map-wrap">
+      <div id="dsp-map"></div>
+      <button class="dsp-map-fitbtn" onclick="fitAll()" id="dsp-fitbtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.93"/></svg> Fit All
+      </button>
+      <div class="rd-map-legend">
+        <div class="rd-legend-row"><span class="rd-legend-dot" style="background:#16a34a"></span>Completed</div>
+        <div class="rd-legend-row"><span class="rd-legend-dot" style="background:#f97316"></span>Next stop</div>
+        <div class="rd-legend-row"><span class="rd-legend-dot" style="background:#fff;border:2px solid #9ca3af"></span>Pending</div>
+        <div class="rd-legend-row"><span class="rd-legend-dot" style="background:#dc2626"></span>Deferred</div>
+        <div class="rd-legend-row"><span class="rd-legend-sq" style="background:#6b7280"></span>Depot</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<script>
+const DSP_ROOT = document.getElementById('dsp-root');
+
+// ── Server-bootstrapped data ──────────────────────────────────────────────────
+let TRIPS    = {{ trips_json|safe }};
+let VEHICLES = {{ vehicles_json|safe }};
+
+const TRIPS_URL = "{% url 'route-dispatch-trips' %}";
+
+const TRIP_COLORS = ['#2563eb','#d97706','#7c3aed','#059669','#dc2626','#db2777','#0891b2','#65a30d'];
+
+function tripColor(index) { return TRIP_COLORS[index % TRIP_COLORS.length]; }
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
+function applyTheme(dark) {
+  DSP_ROOT.classList.toggle('dark', dark);
+  document.getElementById('dsp-icon-moon').style.display = dark ? 'none' : '';
+  document.getElementById('dsp-icon-sun').style.display  = dark ? '' : 'none';
+}
+function toggleTheme() {
+  const dark = !DSP_ROOT.classList.contains('dark');
+  localStorage.setItem('dsp-theme', dark ? 'dark' : 'light');
+  applyTheme(dark);
+}
+(function() { if (localStorage.getItem('dsp-theme') === 'dark') applyTheme(true); })();
+
+// ── Fullscreen ────────────────────────────────────────────────────────────────
+function toggleFullscreen() {
+  const expand = document.getElementById('dsp-fs-expand');
+  const collapse = document.getElementById('dsp-fs-collapse');
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+    document.body.classList.add('dsp-fullscreen');
+    expand.style.display = 'none'; collapse.style.display = '';
+    if (window._dspMap) setTimeout(() => window._dspMap.resize(), 100);
+  } else {
+    document.exitFullscreen().catch(() => {});
+    document.body.classList.remove('dsp-fullscreen');
+    expand.style.display = ''; collapse.style.display = 'none';
+    if (window._dspMap) setTimeout(() => window._dspMap.resize(), 100);
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    document.body.classList.remove('dsp-fullscreen');
+    document.getElementById('dsp-fs-expand').style.display = '';
+    document.getElementById('dsp-fs-collapse').style.display = 'none';
+    if (window._dspMap) setTimeout(() => window._dspMap.resize(), 100);
+  }
+});
+
+// ── Panel resize ──────────────────────────────────────────────────────────────
+(function() {
+  const vHandle = document.getElementById('dsp-vdivider');
+  const main = vHandle?.closest('.dsp-main');
+  if (vHandle && main) {
+    vHandle.addEventListener('mousedown', function(e) {
+      e.preventDefault(); vHandle.classList.add('dragging');
+      const startX = e.clientX, totalW = main.getBoundingClientRect().width;
+      const startLeft = parseFloat(getComputedStyle(main).gridTemplateColumns.split(' ')[0]);
+      function onMove(ev) {
+        const newLeft = Math.min(Math.max(startLeft + ev.clientX - startX, 160), totalW - 168);
+        main.style.gridTemplateColumns = `${newLeft}px 8px ${totalW - newLeft - 8}px`;
+      }
+      function onUp() {
+        vHandle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (window._dspMap) window._dspMap.resize();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+})();
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function tickClock() {
+  const now = new Date(), pad = n => String(n).padStart(2, '0');
+  document.getElementById('dsp-clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+tickClock(); setInterval(tickClock, 1000);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+}
+
+function nextStop(trip) {
+  return (trip.stops || [])
+    .filter(s => (s.kind === 'delivery' || s.kind === 'pickup') && !s.completed_at && !s.deferred_at)
+    .sort((a, b) => a.sequence - b.sequence)[0] || null;
+}
+
+// ── Trip card rendering ───────────────────────────────────────────────────────
+let _activeCard = null;
+
+function statusChip(trip) {
+  if (trip.status === 'completed') return '<span class="rd-chip rd-chip-done">Completed</span>';
+  if (trip.status === 'en_route')  return '<span class="rd-chip rd-chip-en">En route</span>';
+  return '<span class="rd-chip rd-chip-pre">Pre-departure</span>';
+}
+function timingChip(trip) {
+  if (!trip.timing) return '';
+  if (trip.timing === 'late')    return '<span class="rd-chip rd-chip-late">Late</span>';
+  if (trip.timing === 'at_risk') return '<span class="rd-chip rd-chip-risk">At risk</span>';
+  return '<span class="rd-chip rd-chip-ok">On time</span>';
+}
+function nextStopHtml(trip) {
+  const s = nextStop(trip);
+  if (!s) {
+    if (trip.status === 'completed') return '<span class="rd-next" style="color:#16a34a;font-weight:600">All stops done</span>';
+    if (trip.status === 'pre_departure') return '<span class="rd-next">Awaiting departure from depot</span>';
+    return '<span class="rd-next">No remaining stops</span>';
+  }
+  const eta = s.estimated_arrival || s.planned_arrival;
+  const etaStr = fmtTime(eta);
+  let etaClass = '';
+  if (trip.timing === 'late') etaClass = 'rd-next-late';
+  else if (trip.timing === 'at_risk') etaClass = 'rd-next-risk';
+  return `<div class="rd-next">
+    <span class="rd-next-label">Next:</span>
+    <span class="rd-next-addr">${s.customer_name || 'Unknown'} — ${s.address || ''}</span>
+    ${etaStr ? `<span class="rd-next-eta ${etaClass}">ETA ${etaStr}</span>` : ''}
+  </div>`;
+}
+
+function renderCards(trips) {
+  const container = document.getElementById('rd-cards');
+  const countEl   = document.getElementById('rd-count');
+  if (!container) return;
+  countEl.textContent = trips.length;
+  if (!trips.length) {
+    container.innerHTML = '<div class="dsp-queue-empty">No active routes for today.</div>';
+    return;
+  }
+  container.innerHTML = trips.map((trip, i) => {
+    const color    = tripColor(i);
+    const pct      = trip.stops_total > 0 ? Math.round(trip.stops_done / trip.stops_total * 100) : 0;
+    const isActive = _activeCard === trip.id;
+    return `<div class="rd-card ${isActive ? 'active' : ''}"
+                 data-trip-id="${trip.id}"
+                 onclick="selectTrip(${trip.id})"
+                 style="border-left-color:${isActive ? color : '#e5e7eb'}">
+      <div class="rd-top">
+        <span class="rd-color-dot" style="background:${color}"></span>
+        <span class="rd-reg">${trip.vehicle_reg || '—'}</span>
+        <span class="rd-driver">${trip.driver_name || ''}</span>
+        <div class="rd-chips">${statusChip(trip)}${timingChip(trip)}</div>
+      </div>
+      <div class="rd-progress-wrap">
+        <div class="rd-progress-bar">
+          <div class="rd-progress-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <span class="rd-progress-label">${trip.stops_done} / ${trip.stops_total} stops</span>
+      </div>
+      ${nextStopHtml(trip)}
+    </div>`;
+  }).join('');
+}
+
+function selectTrip(tripId) {
+  _activeCard = (_activeCard === tripId) ? null : tripId;
+  renderCards(TRIPS);
+  const trip = TRIPS.find(t => t.id === tripId);
+  if (!trip || _activeCard === null) return;
+  const i = TRIPS.indexOf(trip);
+  const color = tripColor(i);
+  // Highlight this trip's polyline
+  if (map.getSource('routes')) {
+    map.setPaintProperty('routes-line', 'line-width', [
+      'case', ['==', ['get', 'trip_id'], tripId], 5, 3
+    ]);
+    map.setPaintProperty('routes-line', 'line-opacity', [
+      'case', ['==', ['get', 'trip_id'], tripId], 1, 0.35
+    ]);
+  }
+  // Fly to vehicle if known
+  const v = VEHICLES.find(v => v.trip_id === tripId);
+  if (v && v.lat && v.lon) {
+    map.easeTo({ center: [v.lon, v.lat], zoom: 13, duration: 600 });
+  } else if (trip.geometry_coords && trip.geometry_coords.length) {
+    const coords = trip.geometry_coords;
+    const lons = coords.map(c => c[0]), lats = coords.map(c => c[1]);
+    map.fitBounds(
+      [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: 60, maxZoom: 14, duration: 600 }
+    );
+  }
+}
+
+// ── Map setup ─────────────────────────────────────────────────────────────────
+const map = new maplibregl.Map({
+  container: 'dsp-map',
+  style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '&copy; OpenStreetMap contributors' }}, layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+  center: [28.0473, -26.2041],
+  zoom: 10,
+});
+window._dspMap = map;
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+// ── GeoJSON builders ──────────────────────────────────────────────────────────
+function buildRoutesGeoJSON(trips) {
+  return {
+    type: 'FeatureCollection',
+    features: trips
+      .filter(t => t.geometry_coords && t.geometry_coords.length > 1)
+      .map((t, i) => ({
+        type: 'Feature',
+        properties: { trip_id: t.id, color: tripColor(i) },
+        geometry: { type: 'LineString', coordinates: t.geometry_coords },
+      })),
+  };
+}
+
+function stopStatus(stop) {
+  if (stop.kind === 'depot_start' || stop.kind === 'depot_end') return 'depot';
+  if (stop.completed_at) return 'completed';
+  if (stop.deferred_at)  return 'deferred';
+  return 'pending';
+}
+
+function buildStopsGeoJSON(trips) {
+  const features = [];
+  // Track which stops are "next" per trip
+  const nextStops = new Set();
+  trips.forEach(trip => {
+    const n = nextStop(trip);
+    if (n) nextStops.add(n.id);
+  });
+
+  trips.forEach((trip, i) => {
+    const color = tripColor(i);
+    (trip.stops || []).forEach(stop => {
+      if (!stop.lat || !stop.lng) return;
+      let status = stopStatus(stop);
+      if (status === 'pending' && nextStops.has(stop.id)) status = 'next';
+      features.push({
+        type: 'Feature',
+        properties: {
+          stop_id: stop.id,
+          trip_id: trip.id,
+          trip_color: color,
+          status,
+          customer: stop.customer_name || 'Depot',
+          address: stop.address || '',
+          planned: stop.planned_arrival,
+          eta: stop.estimated_arrival,
+          completed: stop.completed_at,
+          kind: stop.kind,
+        },
+        geometry: { type: 'Point', coordinates: [stop.lng, stop.lat] },
+      });
+    });
+  });
+  return { type: 'FeatureCollection', features };
+}
+
+// ── Map layers ────────────────────────────────────────────────────────────────
+let nextPulseMarker = null;
+
+map.on('load', () => {
+  // Route polylines
+  map.addSource('routes', { type: 'geojson', data: buildRoutesGeoJSON(TRIPS) });
+  map.addLayer({
+    id: 'routes-line',
+    type: 'line',
+    source: 'routes',
+    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': 3,
+      'line-opacity': 0.75,
+    },
+  });
+
+  // Stop circles
+  map.addSource('stops', { type: 'geojson', data: buildStopsGeoJSON(TRIPS) });
+  map.addLayer({
+    id: 'stops-circle',
+    type: 'circle',
+    source: 'stops',
+    paint: {
+      'circle-radius': [
+        'match', ['get', 'status'],
+        'completed', 7,
+        'next',      8,
+        'deferred',  7,
+        'depot',     5,
+        6,
+      ],
+      'circle-color': [
+        'match', ['get', 'status'],
+        'completed', '#16a34a',
+        'next',      '#f97316',
+        'deferred',  '#dc2626',
+        'depot',     ['get', 'trip_color'],
+        '#ffffff',
+      ],
+      'circle-stroke-width': [
+        'match', ['get', 'status'], 'pending', 2, 1.5
+      ],
+      'circle-stroke-color': [
+        'match', ['get', 'status'],
+        'pending',  '#9ca3af',
+        '#ffffff',
+      ],
+      'circle-opacity': ['match', ['get', 'status'], 'depot', 0.6, 1],
+    },
+  });
+
+  // Click handler for stop popups
+  map.on('click', 'stops-circle', e => {
+    const p = e.features[0].properties;
+    const rows = [
+      `<strong style="font-size:13px">${p.customer}</strong>`,
+      p.address ? `<div style="color:#6b7280;font-size:11px;margin:2px 0">${p.address}</div>` : '',
+      p.planned  ? `<div style="margin-top:4px"><span style="color:#9ca3af;font-size:10px">Planned&nbsp;</span>${fmtTime(p.planned)}</div>` : '',
+      p.eta      ? `<div><span style="color:#9ca3af;font-size:10px">ETA&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><b>${fmtTime(p.eta)}</b></div>` : '',
+      p.completed ? `<div style="color:#16a34a;font-size:11px;margin-top:4px">✓ Completed ${fmtTime(p.completed)}</div>`
+                  : (p.status === 'deferred' ? '<div style="color:#dc2626;font-size:11px;margin-top:4px">⊘ Deferred</div>' : ''),
+    ].join('');
+    new maplibregl.Popup({ offset: 12 })
+      .setLngLat(e.lngLat)
+      .setHTML(rows)
+      .addTo(map);
+  });
+  map.on('mouseenter', 'stops-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'stops-circle', () => { map.getCanvas().style.cursor = ''; });
+
+  // Initial render
+  renderCards(TRIPS);
+  placeVehicleMarkers(VEHICLES);
+  placePulseMarker(TRIPS);
+  fitAll();
+});
+
+// ── Vehicle markers ───────────────────────────────────────────────────────────
+function makeCarEl(color, heading) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'cursor:pointer;filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))';
+  wrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="26"
+      viewBox="0 0 18 26" style="display:block;transform:rotate(${heading}deg)">
+    <rect x="2" y="4" width="14" height="18" rx="4" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+    <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
+    <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
+    <rect x="5" y="2" width="8" height="3" rx="2" fill="${color}" opacity=".7"/>
+    <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+    <rect x="15.5" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
+  </svg>`;
+  return wrap;
+}
+
+function vehicleColor(v) {
+  const i = TRIPS.findIndex(t => t.id === v.trip_id);
+  return i >= 0 ? tripColor(i) : '#9ca3af';
+}
+
+const vMarkers = {};
+
+function placeVehicleMarkers(vehicles) {
+  Object.values(vMarkers).forEach(m => m.remove());
+  for (const k in vMarkers) delete vMarkers[k];
+  vehicles.forEach(v => {
+    if (!v.lat || !v.lon) return;
+    const color = vehicleColor(v);
+    const el = makeCarEl(color, v.heading || 0);
+    const popup = new maplibregl.Popup({ offset: 14, closeButton: false }).setHTML(
+      `<strong style="font-size:12px">${v.reg}</strong>` +
+      `<div style="font-size:11px;color:#6b7280;margin-top:2px">${v.driver || 'No driver'} · ${v.speed} km/h</div>`
+    );
+    vMarkers[v.id] = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([v.lon, v.lat]).setPopup(popup).addTo(map);
+  });
+}
+
+// ── Next-stop pulse overlay ───────────────────────────────────────────────────
+function placePulseMarker(trips) {
+  if (nextPulseMarker) { nextPulseMarker.remove(); nextPulseMarker = null; }
+  // Find the most urgently next stop across en-route trips
+  const candidates = [];
+  trips.filter(t => t.status === 'en_route').forEach(t => {
+    const s = nextStop(t);
+    if (s && s.lat && s.lng) candidates.push(s);
+  });
+  if (!candidates.length) return;
+  // Pick the one with the earliest ETA (or planned if no ETA)
+  candidates.sort((a, b) => {
+    const ta = new Date(a.estimated_arrival || a.planned_arrival || 0);
+    const tb = new Date(b.estimated_arrival || b.planned_arrival || 0);
+    return ta - tb;
+  });
+  const s = candidates[0];
+  const el = document.createElement('div');
+  el.className = 'rd-next-pulse';
+  nextPulseMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+    .setLngLat([s.lng, s.lat]).addTo(map);
+}
+
+// ── Fit-all ───────────────────────────────────────────────────────────────────
+function fitAll() {
+  _activeCard = null;
+  if (map.getSource('routes')) {
+    map.setPaintProperty('routes-line', 'line-width', 3);
+    map.setPaintProperty('routes-line', 'line-opacity', 0.75);
+  }
+  renderCards(TRIPS);
+  const pts = [];
+  VEHICLES.forEach(v => { if (v.lat && v.lon) pts.push([v.lon, v.lat]); });
+  TRIPS.forEach(t => (t.geometry_coords || []).forEach(c => pts.push(c)));
+  if (!pts.length) return;
+  if (pts.length === 1) { map.flyTo({ center: pts[0], zoom: 13 }); return; }
+  const lons = pts.map(p => p[0]), lats = pts.map(p => p[1]);
+  map.fitBounds(
+    [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+    { padding: 80, maxZoom: 14 }
+  );
+}
+
+// ── Map data update ───────────────────────────────────────────────────────────
+function updateMapData(trips) {
+  if (map.getSource('routes')) map.getSource('routes').setData(buildRoutesGeoJSON(trips));
+  if (map.getSource('stops'))  map.getSource('stops').setData(buildStopsGeoJSON(trips));
+  placePulseMarker(trips);
+}
+
+// ── SSE — live vehicle positions ──────────────────────────────────────────────
+const sse = new EventSource("{% url 'live-stream' %}");
+sse.onmessage = e => {
+  VEHICLES = JSON.parse(e.data);
+  if (map.loaded()) placeVehicleMarkers(VEHICLES);
+};
+sse.onerror = () => {};
+
+// ── 30s trip/stop polling ─────────────────────────────────────────────────────
+function refreshTrips() {
+  fetch(TRIPS_URL)
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      TRIPS = data.trips || [];
+      renderCards(TRIPS);
+      updateMapData(TRIPS);
+      placeVehicleMarkers(VEHICLES);
+    })
+    .catch(() => {})
+    .finally(() => setTimeout(refreshTrips, 30_000));
+}
+setTimeout(refreshTrips, 30_000);
+</script>
+{% endblock %}

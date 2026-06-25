@@ -1,0 +1,9 @@
+{% extends "mobile/base.html" %}
+{% block title %}Offline — myTrack{% endblock %}
+{% block header_title %}Offline{% endblock %}
+{% block content %}
+<div class="m-scroll-page">
+  <p class="m-empty">You are offline. Reconnect to see live vehicle positions.</p>
+  <a href="{% url 'mobile-home' %}" style="display:block;text-align:center;margin-top:16px;color:var(--accent)">Retry</a>
+</div>
+{% endblock %}

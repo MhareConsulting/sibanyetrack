@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Fuel Overview — myTrack{% endblock %}
+{% block page_title %}Fuel Telemetry{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'fuel-event-list' %}" class="btn btn-ghost btn-sm">All Events</a>
+{% endblock %}
+
+{% block content %}
+<div class="content-padded">
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Latest Level</th>
+          <th>Source</th>
+          <th>Tank Capacity</th>
+          <th>% Full</th>
+          <th>Last Reading</th>
+          <th>Open Alerts</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td style="font-weight:600;color:var(--mh-ink)">{{ row.vehicle.registration }}{% if row.vehicle.label %} <span style="color:var(--text-muted);font-weight:400">{{ row.vehicle.label }}</span>{% endif %}</td>
+          <td>
+            {% if row.latest %}
+              <span style="font-weight:600">{{ row.latest.fuel_level_litres|floatformat:1 }} L</span>
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:0.82rem">
+            {% if row.latest %}{{ row.latest.get_source_display }}{% else %}—{% endif %}
+          </td>
+          <td style="color:var(--text-muted)">
+            {% if row.vehicle.fuel_tank_capacity_litres %}{{ row.vehicle.fuel_tank_capacity_litres|floatformat:0 }} L{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if row.latest and row.vehicle.fuel_tank_capacity_litres %}
+              {% widthratio row.latest.fuel_level_litres row.vehicle.fuel_tank_capacity_litres 100 as pct %}
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:6px;background:var(--border);border-radius:3px;min-width:60px">
+                  <div style="height:6px;background:var(--mh-gradient);border-radius:3px;width:{{ pct }}%"></div>
+                </div>
+                <span style="font-size:0.8rem;color:var(--text-muted)">{{ pct }}%</span>
+              </div>
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:0.82rem">
+            {% if row.latest %}{{ row.latest.device_timestamp|date:"d M H:i" }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if row.unacked %}
+              <span class="badge badge-expired">{{ row.unacked }} unreviewed</span>
+            {% else %}
+              <span class="badge badge-ok">Clear</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;padding-right:16px;white-space:nowrap">
+            <a href="{% url 'fuel-vehicle-detail' row.vehicle.pk %}" class="btn btn-ghost btn-sm">History</a>
+            <a href="{% url 'fuel-calibration-editor' row.vehicle.pk %}" class="btn btn-ghost btn-sm" style="margin-left:4px" title="Probe calibration">
+              {% if row.calibrated %}✓ Cal{% else %}Calibrate{% endif %}
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">No vehicles found. Fuel data will appear here once devices start transmitting.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

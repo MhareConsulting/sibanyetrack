@@ -33,8 +33,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "git push failed" }
     Write-Ok "Push complete"
 
-    Write-Host "`nGitHub Actions is now deploying to track.mharetech.co.za" -ForegroundColor Yellow
-    Write-Host "Track progress: https://github.com/MhareConsulting/myTrack/actions" -ForegroundColor DarkYellow
+    Write-Host "`nGitHub Actions is now deploying to sibanyetrack.mharetech.co.za" -ForegroundColor Yellow
+    Write-Host "Track progress: https://github.com/MhareConsulting/sibanyetrack/actions" -ForegroundColor DarkYellow
 
 } catch {
     Write-Host "`nERROR: $_" -ForegroundColor Red

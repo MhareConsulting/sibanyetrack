@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Dispatcher Console — MhareReach · myTrack{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Dispatcher Console — MhareReach · SibanyeTrack{% endblock %}
 {% block page_title %}Dispatcher Console{% endblock %}
 
 {% block extra_head %}
@@ -12,7 +12,7 @@
      safety    #ea580c  orange  — driving behaviour
      ops       #6b7280  grey    — efficiency / noise
      resolved  #16a34a  green   — cleared
-     brand     #7c3aed  purple  — chrome / selection
+     brand     #AA985D  purple  — chrome / selection
 ═══════════════════════════════════════════════════ */
 
 /* ── Dark-mode CSS variable cascade ─────────────────
@@ -98,8 +98,8 @@
 .dsp-pill-ops      { color:#6b7280; border-color:#e5e7eb; background:#f9fafb; }
 .dsp-pill-ops.active,.dsp-pill-ops:hover      { background:#6b7280; color:#fff; border-color:#6b7280; }
 .dsp-pill-resolved { color:#16a34a; border-color:#bbf7d0; background:#f0fdf4; cursor:default; }
-.dsp-pill-all      { color:#7c3aed; border-color:#ddd6fe; background:#faf5ff; }
-.dsp-pill-all.active,.dsp-pill-all:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.dsp-pill-all      { color:#AA985D; border-color:#ddd6fe; background:#faf5ff; }
+.dsp-pill-all.active,.dsp-pill-all:hover { background:#AA985D; color:#fff; border-color:#AA985D; }
 
 /* Dark adjustments for pills */
 .dsp.dark .dsp-pill-critical { background:#1a0a0a; }
@@ -119,7 +119,7 @@
   display:inline-flex; align-items:center; justify-content:center;
   transition:all 120ms; flex-shrink:0;
 }
-.dsp-theme-btn:hover { border-color:#7c3aed; color:#7c3aed; background:#faf5ff; }
+.dsp-theme-btn:hover { border-color:#AA985D; color:#AA985D; background:#faf5ff; }
 .dsp.dark .dsp-theme-btn:hover { background:#1e1640; }
 
 /* ── Main split pane ──────────────────────────────── */
@@ -136,7 +136,7 @@
   content:''; display:block; width:3px; height:32px;
   border-radius:2px; background:#9ca3af;
 }
-.dsp-vdivider:hover::after,.dsp-vdivider.dragging::after { background:#7c3aed; }
+.dsp-vdivider:hover::after,.dsp-vdivider.dragging::after { background:#AA985D; }
 
 .dsp-hdivider {
   height:8px; background:var(--border); cursor:row-resize;
@@ -148,7 +148,7 @@
   content:''; display:block; width:32px; height:3px;
   border-radius:2px; background:#9ca3af;
 }
-.dsp-hdivider:hover::after,.dsp-hdivider.dragging::after { background:#7c3aed; }
+.dsp-hdivider:hover::after,.dsp-hdivider.dragging::after { background:#AA985D; }
 
 /* ── Alert queue ──────────────────────────────────── */
 .dsp-queue {
@@ -223,8 +223,8 @@
 }
 .dsp-btn-locate {
   font-size:0.71rem; font-weight:700; padding:4px 10px;
-  border-radius:7px; border:1.5px solid #7c3aed;
-  background:transparent; cursor:pointer; color:#7c3aed;
+  border-radius:7px; border:1.5px solid #AA985D;
+  background:transparent; cursor:pointer; color:#AA985D;
   display:inline-flex; align-items:center; gap:4px;
   transition:background 120ms;
 }
@@ -254,14 +254,14 @@
   position:absolute; top:10px; left:10px; z-index:10;
   background:#fff; border:1px solid var(--border); border-radius:8px;
   padding:5px 12px; font-size:0.73rem; font-weight:700; cursor:pointer;
-  color:#7c3aed; box-shadow:var(--shadow-sm);
+  color:#AA985D; box-shadow:var(--shadow-sm);
   display:inline-flex; align-items:center; gap:5px;
 }
 .dsp-map-fitbtn:hover { background:#faf5ff; }
 .dsp.dark .dsp-map-fitbtn { background:#1e2234; color:#a78bfa; }
 .dsp.dark .dsp-map-fitbtn:hover { background:#25284a; }
 .dsp-map-fitbtn.event-active {
-  background:#7c3aed; color:#fff; border-color:#7c3aed;
+  background:#AA985D; color:#fff; border-color:#AA985D;
   animation:fitpulse 1.8s ease-in-out infinite;
 }
 @keyframes fitpulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.4)} 50%{box-shadow:0 0 0 6px rgba(124,58,237,0)} }
@@ -269,7 +269,7 @@
 /* Event pin marker */
 .dsp-event-pin {
   width:16px; height:16px; border-radius:50%;
-  background:#7c3aed; border:2px solid #fff;
+  background:#AA985D; border:2px solid #fff;
   box-shadow:0 0 0 0 rgba(124,58,237,.7);
   animation:evtping 1.4s ease-out infinite; cursor:pointer;
 }
@@ -307,7 +307,7 @@
 .dsp-off-row { display:flex; align-items:center; gap:7px; font-size:0.75rem; margin-bottom:5px; }
 .dsp-off-reg { font-weight:700; color:var(--mh-ink); width:80px; flex-shrink:0; font-size:0.73rem; }
 .dsp-off-bar-wrap { flex:1; height:7px; background:var(--dsp-ring-track); border-radius:4px; overflow:hidden; }
-.dsp-off-bar { height:100%; border-radius:4px; background:#7c3aed; }
+.dsp-off-bar { height:100%; border-radius:4px; background:#AA985D; }
 .dsp-off-n { font-weight:700; color:var(--text-muted); min-width:22px; text-align:right; font-size:0.72rem; }
 
 /* Shift timeline */
@@ -391,7 +391,7 @@ body.dsp-fullscreen .content { grid-area:content; height:100vh; overflow:hidden;
 
   {# ── Triage strip ──────────────────────────────────── #}
   <div class="dsp-triage">
-    <span class="dsp-triage-brand">MhareReach · myTrack</span>
+    <span class="dsp-triage-brand">MhareReach · SibanyeTrack</span>
 
     <button class="dsp-pill dsp-pill-all active" data-filter="all" onclick="setFilter(this,'all')">
       All&nbsp;<span class="pill-count">{{ critical_count|add:safety_count|add:ops_count }}</span>
@@ -909,7 +909,7 @@ function placeMarker(v) {
     `<div style="font-size:11px;color:#6b7280;margin-top:2px">${v.driver || 'No driver'} · ${v.speed} km/h</div>` +
     `<button onclick="setFollow(${v.id},'${v.reg.replace(/'/g,"\\'")}');map.closePopup?.();"
        style="margin-top:6px;font-size:0.7rem;font-weight:700;padding:3px 9px;border-radius:6px;
-              border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;cursor:pointer;
+              border:1.5px solid #AA985D;background:#faf5ff;color:#AA985D;cursor:pointer;
               display:flex;align-items:center;gap:4px;width:100%">
       ${PIN_SVG_INLINE} Follow vehicle
     </button>`
@@ -1004,10 +1004,10 @@ map.on('load', () => {
         const nowX = x.getPixelForValue(NOW_HOUR);
         if (!nowX) return;
         ctx.save();
-        ctx.strokeStyle='#7c3aed'; ctx.lineWidth=2; ctx.setLineDash([3,3]);
+        ctx.strokeStyle='#AA985D'; ctx.lineWidth=2; ctx.setLineDash([3,3]);
         ctx.beginPath(); ctx.moveTo(nowX, chart.chartArea.top);
         ctx.lineTo(nowX, chart.chartArea.bottom); ctx.stroke();
-        ctx.fillStyle='#7c3aed'; ctx.font='bold 8px Inter,sans-serif';
+        ctx.fillStyle='#AA985D'; ctx.font='bold 8px Inter,sans-serif';
         ctx.fillText('NOW', nowX+3, chart.chartArea.top+9);
         ctx.restore();
       }

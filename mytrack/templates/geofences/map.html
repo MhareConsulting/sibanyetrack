@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}{{ action }} Geofence — myTrack{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}{{ action }} Geofence — SibanyeTrack{% endblock %}
 {% block page_title %}{{ action }} Geofence{% endblock %}
 
 {% block extra_head %}
@@ -158,10 +158,10 @@ const vertexCount   = document.getElementById('vertex-count');
 // ── Sources & layers (added after map loads) ──────────────────────────────────
 map.on('load', () => {
   map.addSource('fence', { type: 'geojson', data: emptyGeoJSON() });
-  map.addLayer({ id: 'fence-fill',   type: 'fill', source: 'fence', paint: { 'fill-color': '#8A2BE2', 'fill-opacity': 0.15 } });
-  map.addLayer({ id: 'fence-border', type: 'line', source: 'fence', paint: { 'line-color': '#8A2BE2', 'line-width': 2 } });
+  map.addLayer({ id: 'fence-fill',   type: 'fill', source: 'fence', paint: { 'fill-color': '#AA985D', 'fill-opacity': 0.15 } });
+  map.addLayer({ id: 'fence-border', type: 'line', source: 'fence', paint: { 'line-color': '#AA985D', 'line-width': 2 } });
   map.addSource('fence-preview', { type: 'geojson', data: emptyGeoJSON() });
-  map.addLayer({ id: 'fence-preview-line', type: 'line', source: 'fence-preview', paint: { 'line-color': '#8A2BE2', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.6 } });
+  map.addLayer({ id: 'fence-preview-line', type: 'line', source: 'fence-preview', paint: { 'line-color': '#AA985D', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.6 } });
 
   if (EXISTING && EXISTING.length >= 3) {
     vertices = EXISTING.slice();
@@ -213,7 +213,7 @@ function emptyGeoJSON() {
 
 function addMarker(pt, idx) {
   const el = document.createElement('div');
-  el.style.cssText = 'width:10px;height:10px;border-radius:50%;background:#8A2BE2;border:2px solid #fff;box-shadow:0 1px 4px rgba(138,43,226,.5)';
+  el.style.cssText = 'width:10px;height:10px;border-radius:50%;background:#AA985D;border:2px solid #fff;box-shadow:0 1px 4px rgba(170,152,93,.5)';
   const m = new maplibregl.Marker({ element: el }).setLngLat(pt).addTo(map);
   vertexMarkers.push(m);
 }

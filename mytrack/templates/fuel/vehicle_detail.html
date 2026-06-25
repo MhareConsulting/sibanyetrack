@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}{{ vehicle.registration }} — Fuel — myTrack{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}{{ vehicle.registration }} — Fuel — SibanyeTrack{% endblock %}
 {% block page_title %}{{ vehicle.registration }} — Fuel History{% endblock %}
 
 {% block topbar_actions %}
@@ -143,7 +143,7 @@ new Chart(document.getElementById('fuelChart'), {
     datasets: [{
       label: 'Fuel level (L)',
       data: data,
-      borderColor: '#00C8FF',
+      borderColor: '#AA985D',
       backgroundColor: 'rgba(0,200,255,0.08)',
       borderWidth: 2,
       pointRadius: data.length > 200 ? 0 : 2,

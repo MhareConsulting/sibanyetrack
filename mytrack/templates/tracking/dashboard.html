@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Live Map — myTrack{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Live Map — SibanyeTrack{% endblock %}
 {% block page_title %}Live Map{% endblock %}
 
 {% block extra_head %}
@@ -22,7 +22,7 @@
   background: transparent;
   transition: background 150ms;
 }
-.panel-resize-handle:hover, .panel-resize-handle.dragging { background: var(--mh-peri, #7c3aed44); }
+.panel-resize-handle:hover, .panel-resize-handle.dragging { background: var(--mh-peri, #AA985D44); }
 
 /* ── Map toolbar overlay ─────────────────────────────────────────────────── */
 .map-toolbar {
@@ -276,7 +276,7 @@
   background: transparent; transition: background 150ms;
   border-top: 1px solid var(--border-soft);
 }
-.v-resize-handle:hover, .v-resize-handle.dragging { background: var(--mh-peri, #7c3aed44); }
+.v-resize-handle:hover, .v-resize-handle.dragging { background: var(--mh-peri, #AA985D44); }
 .tp-table { width: 100%; border-collapse: collapse; font-size: 0.71rem; }
 .tp-table th {
   position: sticky; top: 0; background: var(--bg-soft, #f8f8f9);
@@ -522,7 +522,7 @@ function initClusterLayer() {
   map.addLayer({ id: 'cluster-circles', type: 'circle', source: 'vehicles-cluster',
     filter: ['has', 'point_count'],
     paint: {
-      'circle-color': '#8A2BE2',
+      'circle-color': '#AA985D',
       'circle-radius': ['step', ['get', 'point_count'], 16, 5, 22, 20, 28],
       'circle-opacity': 0.85,
     },
@@ -733,11 +733,11 @@ function renderVehicles(vehicles) {
         el.innerHTML = `<svg class="car-svg" xmlns="http://www.w3.org/2000/svg"
             width="18" height="26" viewBox="0 0 18 26"
             style="transform:rotate(${heading}deg)">
-          <rect x="2" y="4" width="14" height="18" rx="4" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/>
-          <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(220,240,255,0.85)"/>
-          <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(220,240,255,0.55)"/>
-          <rect x="5" y="2" width="8" height="3" rx="2" fill="#6d28d9"/>
-          <rect x="5" y="21" width="8" height="2.5" rx="1.5" fill="#6d28d9"/>
+          <rect x="2" y="4" width="14" height="18" rx="4" fill="#AA985D" stroke="#fff" stroke-width="1.5"/>
+          <rect x="4" y="6" width="10" height="5.5" rx="2" fill="rgba(255,248,220,0.85)"/>
+          <rect x="4" y="17" width="10" height="3.5" rx="1.5" fill="rgba(255,248,220,0.55)"/>
+          <rect x="5" y="2" width="8" height="3" rx="2" fill="#8a7a3d"/>
+          <rect x="5" y="21" width="8" height="2.5" rx="1.5" fill="#AA985D"/>
           <rect x="0" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
           <rect x="15.5" y="6.5" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
           <rect x="0" y="15" width="2.5" height="4.5" rx="1.25" fill="#1f2937"/>
@@ -787,7 +787,7 @@ function updateTrace() {
   } else {
     map.addSource('trace-line', { type: 'geojson', data: geojson });
     map.addLayer({ id: 'trace-layer', type: 'line', source: 'trace-line',
-      paint: { 'line-color': '#00C8FF', 'line-width': 2.5, 'line-opacity': 0.55, 'line-dasharray': [2, 2] } });
+      paint: { 'line-color': '#AA985D', 'line-width': 2.5, 'line-opacity': 0.55, 'line-dasharray': [2, 2] } });
   }
 }
 
@@ -801,9 +801,9 @@ function addGeofenceLayers() {
   if (map.getSource('geofences')) return;
   map.addSource('geofences', { type: 'geojson', data: geofenceData });
   map.addLayer({ id: 'geofence-fill',   type: 'fill', source: 'geofences',
-    paint: { 'fill-color': '#8A2BE2', 'fill-opacity': 0.07 } });
+    paint: { 'fill-color': '#AA985D', 'fill-opacity': 0.07 } });
   map.addLayer({ id: 'geofence-border', type: 'line', source: 'geofences',
-    paint: { 'line-color': '#8A2BE2', 'line-width': 1.5, 'line-dasharray': [3, 2] } });
+    paint: { 'line-color': '#AA985D', 'line-width': 1.5, 'line-dasharray': [3, 2] } });
 }
 
 map.on('load', () => {
@@ -870,7 +870,7 @@ function isoFromInputs(dId, tId) {
   return d ? `${d}T${t}:00` : '';
 }
 
-const TRIP_COLORS = ['#8A2BE2','#00C8FF','#22c55e','#f59e0b','#ef4444','#ec4899'];
+const TRIP_COLORS = ['#AA985D','#808285','#22c55e','#f59e0b','#ef4444','#ec4899'];
 
 async function drawTracks() {
   if (!selectedVId) return;
@@ -1240,8 +1240,8 @@ function buildFloatChart() {
   // Speed (default)
   labels      = replayPings.map(p => p.ts ? new Date(p.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '');
   values      = replayPings.map(p => p.speed_kmh != null ? Math.round(p.speed_kmh) : 0);
-  borderColor = '#8A2BE2';
-  bgColor     = 'rgba(138,43,226,0.08)';
+  borderColor = '#AA985D';
+  bgColor     = 'rgba(170,152,93,0.08)';
   yLabel      = 'km/h';
   extraDatasets = [{
     label: `Limit (${SPEED_LIMIT_KMH} km/h)`,

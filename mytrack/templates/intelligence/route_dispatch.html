@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Route Dispatch — myTrack{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Route Dispatch — SibanyeTrack{% endblock %}
 {% block page_title %}Route Dispatch{% endblock %}
 
 {% block extra_head %}
@@ -31,15 +31,15 @@
   display:inline-flex; align-items:center; justify-content:center;
   transition:all 120ms; flex-shrink:0;
 }
-.dsp-theme-btn:hover { border-color:#7c3aed; color:#7c3aed; background:#faf5ff; }
+.dsp-theme-btn:hover { border-color:#AA985D; color:#AA985D; background:#faf5ff; }
 .dsp.dark .dsp-theme-btn:hover { background:#1e1640; }
 .dsp-pill {
   display:inline-flex; align-items:center; gap:5px; padding:4px 12px;
   border-radius:20px; cursor:pointer; font-size:0.75rem; font-weight:700;
   border:1.5px solid transparent; transition:all 120ms; user-select:none;
 }
-.dsp-pill-all { color:#7c3aed; border-color:#ddd6fe; background:#faf5ff; }
-.dsp-pill-all:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.dsp-pill-all { color:#AA985D; border-color:#ddd6fe; background:#faf5ff; }
+.dsp-pill-all:hover { background:#AA985D; color:#fff; border-color:#AA985D; }
 .dsp.dark .dsp-pill-all { background:#160f2a; border-color:#3b2c6e; }
 
 /* main split */
@@ -54,7 +54,7 @@
   content:''; display:block; width:3px; height:32px;
   border-radius:2px; background:#9ca3af;
 }
-.dsp-vdivider:hover::after,.dsp-vdivider.dragging::after { background:#7c3aed; }
+.dsp-vdivider:hover::after,.dsp-vdivider.dragging::after { background:#AA985D; }
 
 /* left panel */
 .dsp-queue {
@@ -70,7 +70,7 @@
   position:absolute; top:10px; left:10px; z-index:10;
   background:#fff; border:1px solid var(--border); border-radius:8px;
   padding:5px 12px; font-size:0.73rem; font-weight:700; cursor:pointer;
-  color:#7c3aed; box-shadow:0 1px 4px rgba(0,0,0,.12);
+  color:#AA985D; box-shadow:0 1px 4px rgba(0,0,0,.12);
   display:inline-flex; align-items:center; gap:5px;
 }
 .dsp-map-fitbtn:hover { background:#faf5ff; }
@@ -108,7 +108,7 @@ body.dsp-fullscreen .content { grid-area:content; height:100vh; overflow:hidden;
 }
 .rd-card:hover { background:#f8fafc; }
 .dsp.dark .rd-card:hover { background:#1c2035; }
-.rd-card.active { border-left-color:#7c3aed; background:#faf5ff; }
+.rd-card.active { border-left-color:#AA985D; background:#faf5ff; }
 .dsp.dark .rd-card.active { background:#1a1640; }
 
 .rd-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -136,7 +136,7 @@ body.dsp-fullscreen .content { grid-area:content; height:100vh; overflow:hidden;
 
 .rd-progress-wrap { display:flex; align-items:center; gap:8px; }
 .rd-progress-bar { flex:1; height:6px; background:var(--dsp-ring-track); border-radius:4px; overflow:hidden; }
-.rd-progress-fill { height:100%; border-radius:4px; background:#7c3aed; transition:width 400ms; }
+.rd-progress-fill { height:100%; border-radius:4px; background:#AA985D; transition:width 400ms; }
 .rd-progress-label { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; font-weight:600; }
 
 .rd-next { font-size:0.75rem; color:var(--text-muted); display:flex; gap:6px; flex-wrap:wrap; align-items:baseline; }
@@ -240,7 +240,7 @@ let VEHICLES = {{ vehicles_json|safe }};
 
 const TRIPS_URL = "{% url 'route-dispatch-trips' %}";
 
-const TRIP_COLORS = ['#2563eb','#d97706','#7c3aed','#059669','#dc2626','#db2777','#0891b2','#65a30d'];
+const TRIP_COLORS = ['#2563eb','#d97706','#AA985D','#059669','#dc2626','#db2777','#0891b2','#65a30d'];
 
 function tripColor(index) { return TRIP_COLORS[index % TRIP_COLORS.length]; }
 

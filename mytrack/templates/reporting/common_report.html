@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}{{ domain|title }} Report — mTrack{% endblock %}
 {% block page_title %}{{ domain|title }} Report{% endblock %}
 
@@ -407,7 +407,7 @@ document.querySelectorAll('#kpi-grid .rd-kpi').forEach(card => {
   if (!rows.length) return;
 
   const ctx = document.getElementById('rd-chart').getContext('2d');
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--rd-accent').trim() || '#8A2BE2';
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--rd-accent').trim() || '#AA985D';
 
   if (DOMAIN === 'speed' || DOMAIN === 'route') {
     const valueField = DOMAIN === 'speed' ? 'max_speed_kmh' : 'distance_km';

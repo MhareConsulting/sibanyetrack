@@ -1,13 +1,13 @@
-/* myTrack mobile dispatcher PWA — MhareReach palette (matches base.html) */
+/* SibanyeTrack mobile dispatcher PWA — Sibanye-Stillwater palette (matches base.html) */
 :root {
-  --mh-cyan: #00c8ff;
-  --mh-purple: #8a2be2;
-  --mh-peri: #c5cae9;
-  --mh-peri-soft: #eef0fb;
+  --mh-cyan: #aa985d;
+  --mh-purple: #808285;
+  --mh-peri: #d4c89a;
+  --mh-peri-soft: #f5f2e8;
   --mh-ink: #0a0a0a;
   --mh-paper: #f7f8fb;
-  --mh-gradient: linear-gradient(135deg, #00c8ff 0%, #8a2be2 100%);
-  --mh-gradient-soft: linear-gradient(135deg, rgba(0, 200, 255, 0.1) 0%, rgba(138, 43, 226, 0.1) 100%);
+  --mh-gradient: linear-gradient(135deg, #aa985d 0%, #808285 100%);
+  --mh-gradient-soft: linear-gradient(135deg, rgba(170, 152, 93, 0.1) 0%, rgba(128, 130, 133, 0.1) 100%);
 
   --text: #0a0a0a;
   --text-muted: #6b7280;

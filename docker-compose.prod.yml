@@ -13,7 +13,7 @@ services:
 
   traccar:
     image: traccar/traccar:latest
-    container_name: mytrack-traccar
+    container_name: sibanyetrack-traccar
     restart: unless-stopped
     ports:
       - "8082:8082"   # Traccar web UI
@@ -30,11 +30,11 @@ services:
       - JAVA_OPTS=-Xmx512m
 
   web:
-    image: mytrack-web:latest
+    image: sibanyetrack-web:latest
     restart: unless-stopped
     env_file: .env
     ports:
-      - "8001:8001"
+      - "8002:8001"
     depends_on:
       - db
 

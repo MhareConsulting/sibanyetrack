@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Sign in — myTrack{% endblock %}
+{% block title %}Sign in — SibanyeTrack{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -87,8 +87,19 @@
   <!-- Brand pane -->
   <aside class="auth-hero">
     <div class="auth-hero-brand">
-      <div class="auth-hero-mark"></div>
-      <div>myTrack<small style="display:block;font-size:0.65rem;font-weight:600;letter-spacing:0.14em;opacity:0.75;text-transform:uppercase;margin-top:2px;">Vehicle &amp; Driver Tracking</small></div>
+      <div class="auth-hero-mark" style="background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;">
+        <svg viewBox="0 0 133 52" xmlns="http://www.w3.org/2000/svg" width="60" height="24" style="display:block;">
+          <path fill="#fff" d="M0 41.6V10.4h6.2l9.8 20.3 9.8-20.3h6.2v31.2h-5.8V21l-8.1 16.7H14L5.8 21v20.6H0z"/>
+          <path fill="#fff" d="M35.4 41.6V10.4h5.8v31.2h-5.8z"/>
+          <path fill="#fff" d="M45.3 41.6V10.4h5.3l14.7 20.8V10.4h5.8v31.2h-5.3L51.1 20.8v20.8h-5.8z"/>
+          <path fill="#fff" d="M75.4 41.6V10.4h5.8v31.2h-5.8z"/>
+          <path fill="#fff" d="M85.3 26c0-9.8 6.2-16.2 15.5-16.2 5.5 0 9.8 2.2 12.5 6.4l-4.6 3.1c-1.8-2.8-4.5-4.2-7.9-4.2-5.9 0-9.7 4.2-9.7 10.9 0 6.7 3.8 10.9 9.7 10.9 3.4 0 6.1-1.4 7.9-4.2l4.6 3.1c-2.7 4.2-7 6.4-12.5 6.4-9.3 0-15.5-6.4-15.5-16.2z"/>
+          <path fill="rgba(255,255,255,0.7)" d="M121.2 10.4h11.8v5.3h-11.8V10.4z"/>
+          <path fill="rgba(255,255,255,0.7)" d="M121.2 23.4h11.8v5.3h-11.8v-5.3z"/>
+          <path fill="rgba(255,255,255,0.7)" d="M121.2 36.3h11.8v5.3h-11.8v-5.3z"/>
+        </svg>
+      </div>
+      <div>SibanyeTrack<small style="display:block;font-size:0.65rem;font-weight:600;letter-spacing:0.14em;opacity:0.75;text-transform:uppercase;margin-top:2px;">Fleet Accountability</small></div>
     </div>
 
     <div>
@@ -106,12 +117,12 @@
         </div>
         <div class="auth-hero-bullet">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-          Seamlessly connected to myRoutes dispatch
+          Geofenced zones and safety-event alerts
         </div>
       </div>
     </div>
 
-    <div class="auth-hero-foot">Mhare Consulting · MyReach Suite</div>
+    <div class="auth-hero-foot">Mhare Tech · SibanyeTrack</div>
   </aside>
 
   <!-- Sign-in pane -->
@@ -120,7 +131,7 @@
       <div class="auth-card-head">
         <div class="eyebrow">Sign in</div>
         <h1>Welcome back</h1>
-        <p>Use your myTrack credentials to continue.</p>
+        <p>Use your SibanyeTrack credentials to continue.</p>
       </div>
 
       <form method="post" class="auth-form" novalidate>

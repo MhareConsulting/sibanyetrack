@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}myTrack{% endblock %} — MyReach</title>
+  <title>{% block title %}SibanyeTrack{% endblock %} — Sibanye-Stillwater</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,14 +13,14 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --mh-cyan:       #00C8FF;
-      --mh-purple:     #8A2BE2;
-      --mh-peri:       #C5CAE9;
-      --mh-peri-soft:  #EEF0FB;
+      --mh-cyan:       #AA985D;
+      --mh-purple:     #808285;
+      --mh-peri:       #D4C89A;
+      --mh-peri-soft:  #F5F2E8;
       --mh-ink:        #0A0A0A;
       --mh-paper:      #F7F8FB;
-      --mh-gradient:   linear-gradient(135deg, #00C8FF 0%, #8A2BE2 100%);
-      --mh-gradient-soft: linear-gradient(135deg, rgba(0,200,255,0.08) 0%, rgba(138,43,226,0.08) 100%);
+      --mh-gradient:   linear-gradient(135deg, #AA985D 0%, #808285 100%);
+      --mh-gradient-soft: linear-gradient(135deg, rgba(170,152,93,0.08) 0%, rgba(128,130,133,0.08) 100%);
 
       --text:        #0A0A0A;
       --text-muted:  #6b7280;
@@ -86,7 +86,7 @@
       width: 32px; height: 32px;
       border-radius: 9px;
       background: var(--mh-gradient);
-      box-shadow: 0 4px 12px -2px rgba(138,43,226,0.45);
+      box-shadow: 0 4px 12px -2px rgba(170,152,93,0.45);
       animation: mhFloat 3s ease infinite;
       flex-shrink: 0;
     }
@@ -223,7 +223,7 @@
     }
     .btn-primary {
       background: var(--mh-gradient); color: #fff;
-      box-shadow: 0 4px 14px -4px rgba(138,43,226,0.5);
+      box-shadow: 0 4px 14px -4px rgba(170,152,93,0.5);
     }
     .btn-primary:hover { box-shadow: 0 8px 22px -6px rgba(138,43,226,0.65); transform: translateY(-1px); }
     .btn-ghost { background: #fff; color: var(--mh-ink); box-shadow: inset 0 0 0 1px var(--border); }
@@ -390,10 +390,21 @@
   <!-- ═══════════ SIDEBAR ═══════════ -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="brand-mark"></div>
+      <div class="brand-mark" style="background:transparent;box-shadow:none;animation:none;display:flex;align-items:center;justify-content:center;">
+        <svg viewBox="0 0 133 52" xmlns="http://www.w3.org/2000/svg" width="72" height="28" style="display:block;">
+          <path fill="#808285" d="M0 41.6V10.4h6.2l9.8 20.3 9.8-20.3h6.2v31.2h-5.8V21l-8.1 16.7H14L5.8 21v20.6H0z"/>
+          <path fill="#808285" d="M35.4 41.6V10.4h5.8v31.2h-5.8z"/>
+          <path fill="#808285" d="M45.3 41.6V10.4h5.3l14.7 20.8V10.4h5.8v31.2h-5.3L51.1 20.8v20.8h-5.8z"/>
+          <path fill="#808285" d="M75.4 41.6V10.4h5.8v31.2h-5.8z"/>
+          <path fill="#808285" d="M85.3 26c0-9.8 6.2-16.2 15.5-16.2 5.5 0 9.8 2.2 12.5 6.4l-4.6 3.1c-1.8-2.8-4.5-4.2-7.9-4.2-5.9 0-9.7 4.2-9.7 10.9 0 6.7 3.8 10.9 9.7 10.9 3.4 0 6.1-1.4 7.9-4.2l4.6 3.1c-2.7 4.2-7 6.4-12.5 6.4-9.3 0-15.5-6.4-15.5-16.2z"/>
+          <path fill="#AA985D" d="M121.2 10.4h11.8v5.3h-11.8V10.4z"/>
+          <path fill="#AA985D" d="M121.2 23.4h11.8v5.3h-11.8v-5.3z"/>
+          <path fill="#AA985D" d="M121.2 36.3h11.8v5.3h-11.8v-5.3z"/>
+        </svg>
+      </div>
       <div class="brand-name">
-        myTrack
-        <small>{% if request.user.organisation %}{{ request.user.organisation.name }}{% else %}MyReach{% endif %}</small>
+        SibanyeTrack
+        <small>{% if request.user.organisation %}{{ request.user.organisation.name }}{% else %}Sibanye-Stillwater{% endif %}</small>
       </div>
     </div>
 
@@ -559,7 +570,7 @@
       <div class="user-avatar">{{ request.user.username|slice:":2"|upper }}</div>
       <div class="user-meta">
         <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
-        <div class="user-org">{% if request.user.organisation %}{{ request.user.organisation.name }}{% else %}myTrack{% endif %}</div>
+        <div class="user-org">{% if request.user.organisation %}{{ request.user.organisation.name }}{% else %}SibanyeTrack{% endif %}</div>
       </div>
       <a href="{% url 'logout' %}" class="user-action" title="Sign out">
         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
@@ -573,7 +584,7 @@
       <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
     <div>
-      <div class="page-eyebrow">MyReach · myTrack</div>
+      <div class="page-eyebrow">Sibanye-Stillwater · SibanyeTrack</div>
       <div class="page-title">{% block page_title %}{% endblock %}</div>
     </div>
     <div class="topbar-spacer"></div>

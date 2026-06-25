@@ -1,6 +1,6 @@
-{% extends "mobile/base.html" %}
+﻿{% extends "mobile/base.html" %}
 {% load static %}
-{% block title %}Assets — myTrack{% endblock %}
+{% block title %}Assets — SibanyeTrack{% endblock %}
 {% block header_title %}Assets{% endblock %}
 {% block content %}
 <div class="m-actions-bar">
@@ -55,7 +55,7 @@
         <div class="m-asset-info">
           <div class="m-asset-reg">${v.registration}</div>
           <div class="m-asset-sub">${v.label !== v.registration ? v.label : v.registration}</div>
-          <div class="m-asset-service">MhareReach · myTrack</div>
+          <div class="m-asset-service">MhareReach · SibanyeTrack</div>
         </div>
         <span class="m-bell${v.open_alert_count ? ' active' : ''}" data-bell></span>
         <button type="button" class="m-pin-btn" data-pin="${v.id}" aria-label="Show on map"></button>

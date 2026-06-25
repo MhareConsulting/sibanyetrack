@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - "8003:8001"
+      - "8004:8001"
     depends_on:
       - db
 
